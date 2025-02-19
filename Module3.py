@@ -1,6 +1,7 @@
-# SVMoldeler
+# SVMoldeler - Module 3
 
-# MODULE 1B: Process Deletions
+# Process Deletions
+
 import argparse
 import formats
 import gRanges
@@ -254,17 +255,17 @@ def main(vcf_path_all, vcf_path_class, bin_size, chromosome_length, num_events):
     # Add the info for the deletions
     df3 = add_columns(merged_df, prob_INS_col_normalized, df_insertions)
 
-    # Add a new column 'event_type' with the value 'insertion'
-    df3['event_type'] = 'deletion'
+    # Add a new column 'Event_Type' with the value 'insertion'
+    df3['Event_Type'] = 'Deletion'
 
-    # Reorder columns to make 'event_type' the 4th column
+    # Reorder columns to make 'Event_Type' the 4th column
     new_order = df3.columns.tolist()
-    new_order.remove('event_type')
-    new_order.insert(3, 'event_type')
+    new_order.remove('Event_Type')
+    new_order.insert(3, 'Event_Type')
 
     # Update order and name of columns
     df3 = df3[new_order]
-    new_order = ['#ref', 'beg', 'end', 'event_type', 'name', 'Length']
+    new_order = ['#ref', 'beg', 'end', 'Event_Type', 'name', 'Length']
     df_copy = df3[new_order].copy()
     df_copy.rename(columns={'Length': 'Total_Length'}, inplace=True)
 
