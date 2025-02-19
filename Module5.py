@@ -1,3 +1,7 @@
+# SVModeller - Module 5
+
+# Generate BAM file with reads at different coverage and allele frequency levels
+
 import subprocess
 import os
 import argparse
