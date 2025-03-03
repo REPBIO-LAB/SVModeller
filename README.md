@@ -28,6 +28,8 @@ This module aims to process the insertion data from the VCF obtaining different 
 - Genome-wide distribution (.tsv)
 - Insertion features (.tsv)
 - Event probabilities (.tsv)
+- List of VNTR motifs (.txt)
+- List of SVA VNTR motifs (.txt)
 
 ### Module 2
 Second module objective is to generate from determine distributions the final sequences that will be inserted in a genome. It takes the genome-wide and insertion features distributions, even from module 1 or user-defined ones with the same structure as the ones derived from module 1. From these distributions samples different values to build the new events and returns their generated sequence.
@@ -39,13 +41,19 @@ Second module objective is to generate from determine distributions the final se
 - Total number of events to simulate 
 - Table with source loci to LINE-1 transductions (.tsv)
 - Table with source loci to SVA transductions (.tsv)
-- Chromosomes length (.txt)
 - Consensus sequences (.fasta)
 - Reference genome (.fasta)
+- List of VNTR motifs (.txt)
+- List of SVA VNTR motifs (.txt)
 
 **Output:**
 - New insertion events sequences with their corresponding features (.tsv)
 
+**Mandatory input columns**
+- Genome-Wide Distribution: 'window', 'beg', 'end', each event conformation as a column (i.e. 'Alu__FOR+POLYA', 'VNTR', 'INV_DUP')
+- Insertion features: 'Event', 'Length', 'Strand', 'TSD_Length', 'TD_5', 'TD_3', 'SVA_Hexamer', 'SVA_VNTR_Length', 'TD_orphan_Length', 'VNTR_Num_Motifs', 'PolyA_Length_1', 'PolyA_Length_2', 'FOR', 'TRUN', 'REV', 'DEL', 'DUP'
+- Event Probabilities: 'Event' and 'Probability' or 'Number'
+   
 ### Module 3
 Third module generates deletions events. It takes the data from VCF and based on the determine number of events to simulate, selects the regions to be deleted, and returns a data frame with the regions to be removed from the genome.
 
@@ -63,15 +71,19 @@ Third module generates deletions events. It takes the data from VCF and based on
 Fourth module results in a modified genome. It takes data frames of insertion and deletion data (even from modules 2 and 3 or user-defined) and modifies a reference genome with the determine information. The result is the reference genome with the specified changes.
 
 **Input:**
-- Insertion events data (.tsv)
-- Deletion events data (.tsv)
+- Events to mofidy reference genome (.tsv)
 - Reference genome (.fasta)
+- Optional additional events table (.tsv)
 
 **Output:**
 - Modified reference genome (.fasta)
+- Table with added events and their current positions in the genome (.tsv)
+
+**Mandatory input columns**
+- Events to mofidy reference genome: '#ref', 'beg', 'Length', 'Event_Type', 'Sequence_Insertion'
 
 ### Module 5
-Fifth module aims to generate sub-clonal variant reads with different coverage and allele frequency levels. It takes the reference and modified genomes, as well as the method file (based on error model, quality score, or fastQ files) and the corresponding method file, the technology of the simulated reads (Oxford Nanopore - ONT, PacBio HiFi, PacBio HiFi), and desired coverage and allele frequency.
+Fifth module aims to generate sub-clonal variant reads with different coverage and allele frequency levels. It takes the reference and modified genomes, as well as the method file (based on error model, quality score, or fastQ files) and the corresponding method file, the technology of the simulated reads (Oxford Nanopore, PacBio, PacBio-HiFi), and desired coverage and allele frequency.
 
 **Input:**
 - Reference genome (.fasta)
