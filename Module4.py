@@ -48,6 +48,7 @@ def main(file1, file2, fasta_file):
     # Dictionary with keys 'chr1' to 'chr23' and all values set to 0
     counter_dict = {f'chr{i}': 0 for i in range(1, 23)}
     counter_dict['chrX'] = 0
+    counter_dict['chrY'] = 0
 
     # For each row get the necessary values
     for index, row in sorted_df.iterrows():
