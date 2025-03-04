@@ -2,181 +2,305 @@
 
 # Process Deletions
 
+# INPUT:
+# - VCF file with deletion data
+# - Chromosome length file
+#- Number of events
+# - Size of genomic bins (default: 1000000)
+
+# OTPUT:
+# - Deletion events table (.tsv)
+
 import argparse
 import formats
 import gRanges
-import structures
 import numpy as np
 import pandas as pd
 
-def read_vcf_file_BED(file_path):
+def TD_filter(df):
     ''' 
-    Funtion to:
-    - Inicializate a VCF object
-    - use the VCF class to read the path to the VCF file
-    - Create empty list to store the data
-    - For each line get the information and place it in a new dataframe
-    - First the values that are not common in all lines are defined to get their value or write NA
-    - Add to the list all the information and add this list to the dataframe 
+    Input & output: df
+    1- checks if TD_5_Num is not NA and has a value higher than 1
+    2- if so, deletes the value of TD_5_Num and TD_5
+    3- does the same for TD_3_Num
+    4- deletes columns TD_5_Num and TD_3_Num at the end
     '''
-    data = [] # List to store the extracted data
-    with open(file_path, 'r') as f:
-        for line in f:
-            if line.startswith('#'):
-                continue
-            else:
-                elements = line.strip().split('\t')
-                
-                # Get the identifier from the third element
-                identifier = elements[2]
-                
-                # Get the chromosome and position from the first and second elements
-                chromosome = elements[0]
-                position = int(elements[1])
-                
-                # Get the info field
-                info = elements[7].split(';')
-
-                family, strand, length, dtype_n = ('NA',) * 4
-                for item in info:
-                    key, value = item.split('=')
-                    if key == 'FAM_N':
-                        family = value
-                    elif key == 'STRAND':
-                        strand = value
-                    elif key == 'INS_LEN':
-                        length = value
-                    elif key == 'DTYPE_N':
-                        dtype_n = value
-
-                end_position = position + int(length) if length != 'NA' else 'NA'
-                seq_len = len(elements[3])
-
-                # Add to the data list the information
-                data.append({
-                    'Identifier': identifier,
-                    'Type_SV': dtype_n, 
-                    'Family': family,
-                    'Start_position': position,
-                    'End_position': end_position,
-                    'Length': seq_len,
-                    'Chromosome': chromosome,
-                    'Strand': strand
-                })
-
-    df = pd.DataFrame(data, columns=['Chromosome', 'Start_position', 'End_position', 'Identifier', 'Type_SV', 'Family', 'Length', 'Strand'])
+    # Iterate over each row in the DataFrame
+    for index, row in df.iterrows():
+        # Check and modify TD_5_Num and TD_5 if condition is met
+        if row['TD_5_Num'] != 'NA' and int(row['TD_5_Num']) > 1:
+            df.at[index, 'TD_5'] = 'NA'
+            df.at[index, 'TD_5_Num'] = 'NA'
+        
+        # Check and modify TD_3_Num and TD_3 if condition is met
+        if row['TD_3_Num'] != 'NA' and int(row['TD_3_Num']) > 1:
+            df.at[index, 'TD_3'] = 'NA'
+            df.at[index, 'TD_3_Num'] = 'NA'
+    
+    # After processing, drop the TD_5_Num and TD_3_Num columns
+    df = df.drop(columns=['TD_5_Num', 'TD_3_Num'])
+    
     return df
 
-def merge_dataframes(df1, df2):
+def read_vcf_file_BED(file_path):
     ''' 
-    Function to merge two dataframes
+    Function to:
+    - Initialize a VCF object
+    - Use the VCF class to read the path to the VCF file
+    - Create an empty list to store the data
+    - For each line, get the information and place it in a new DataFrame
+    - First, the values that are not common in all lines are defined to get their value or write NA
+    - Add to the list all the information and add this list to the DataFrame 
     '''
-    # Make a copy of the first DataFrame
-    df1_copy = df1.copy()
+    vcf = formats.VCF()  # Instantiate the VCF class
+    vcf.read(file_path)  # Read the VCF file
 
-    # Identify the rows in df2 where the 'identifier' is not in df1
-    df2_filtered = df2[~df2['Identifier'].isin(df1['Identifier'])]
+    data = []  # List to store the extracted data
+    
+    for variant in vcf.variants:
+        # Check for "NOT_CANONICAL" in the INFO field
+        canonical_status = 'NOT_CANONICAL' if 'NOT_CANONICAL' in variant.info else ''
 
-    # Append the filtered rows from df2 to the copy of df1
-    return pd.concat([df1_copy, df2_filtered], ignore_index=True)
+        # Extract information from the INFO field, and if not present, set it to NA
+        data.append({
+            'Type_SV': variant.info.get('DTYPE_N', 'NA'),
+            'Family': variant.info.get('FAM_N', 'NA'),
+            'Conformation': variant.info.get('CONFORMATION', 'NA'),
+            'Conformation_Ext': variant.info.get('CONFORMATION_EXT', 'NA'),
+            'Start_position': variant.pos,
+            'End_position': variant.pos + len(variant.alt),
+            'Length': variant.info.get('DEL_LEN', 'NA'),
+            'Chromosome': variant.chrom,
+            'PolyA_Length': variant.info.get('POLYA_LEN', 'NA'),
+            'Strand': variant.info.get('STRAND', 'NA'),
+            'TSD_Length': variant.info.get('TSD_LEN', 'NA'),
+            'TD_5_Num': variant.info.get('5PRIME_NB_TD', 'NA'),
+            'TD_5': variant.info.get('5PRIME_TD_LEN', 'NA'),
+            'TD_3_Num': variant.info.get('3PRIME_NB_TD', 'NA'),
+            'TD_3': variant.info.get('3PRIME_TD_LEN', 'NA'),
+            'SVA_Hexamer': variant.info.get('HEXAMER_LEN', 'NA'),
+            'TD_orphan_Length': variant.info.get('ORPHAN_TD_LEN', 'NA'),
+            'VNTR_Num_Motifs': variant.info.get('NB_MOTIFS', 'NA'),
+            'VNTR_Motifs': variant.info.get('MOTIFS', 'NA'),
+            'Canonical': canonical_status,
+            'SVA_VNTR_Length': variant.info.get('VNTR_LEN', 'NA'),
+            'SVA_VNTR_Coordinates': variant.info.get('VNTR_COORD', 'NA'),
+        })
+    
+    # Create a data frame from the extracted data
+    df = pd.DataFrame(data, columns=[
+        'Chromosome', 'Start_position', 'End_position', 'Type_SV', 'Family', 'Conformation', 'Conformation_Ext', 'Canonical', 
+        'Length', 'PolyA_Length', 'Strand', 'TSD_Length', 'TD_5_Num', 'TD_5', 'TD_3_Num', 'TD_3', 'SVA_Hexamer', 'SVA_VNTR_Length', 
+        'TD_orphan_Length', 'VNTR_Num_Motifs', 'VNTR_Motifs', 'SVA_VNTR_Coordinates'
+    ])
+    
+    return df
 
-def mut_bins(bins, result_BED_table):
+def extract_conformation_data(row):
+    conformation_ext = row['Conformation_Ext']
+    
+    # Initialize columns with 'NA'
+    for_val = trun_val = rev_val = del_val = dup_val = 'NA'
+    
+    # Extract the data before the commas in the Conformation_Ext column
+    if 'FOR' in conformation_ext:
+        # Get the number before the comma in 'FOR'
+        for_val = conformation_ext.split('FOR(')[1].split(',')[0] if 'FOR' in conformation_ext else 'NA'
+    if 'TRUN' in conformation_ext:
+        # Get the number before the comma in 'TRUN'
+        trun_val = conformation_ext.split('TRUN(')[1].split(',')[0] if 'TRUN' in conformation_ext else 'NA'
+    if 'REV' in conformation_ext:
+        # Get the number before the comma in 'REV'
+        rev_val = conformation_ext.split('REV(')[1].split(',')[0] if 'REV' in conformation_ext else 'NA'
+    if 'DEL' in conformation_ext:
+        # DEL doesn't have a comma, we just extract the value inside DEL()
+        del_val = conformation_ext.split('DEL(')[1].split(')')[0] if 'DEL' in conformation_ext else 'NA'
+    if 'DUP' in conformation_ext:
+        # DUP doesn't have a comma, we just extract the value inside DEL()
+        dup_val = conformation_ext.split('DUP(')[1].split(')')[0] if 'DUP' in conformation_ext else 'NA'   
+
+    return pd.Series([for_val, trun_val, rev_val, del_val, dup_val])
+
+def process_bed_table(result_df):
+    # Change the names to the correct ones:
+    result_BED_table = result_df.rename(columns={'Type_SV': 'name', 'Chromosome':'#ref', 'Start_position': 'beg', 'End_position':'end', 'Family':'SubType'})
+
+    # Update 'name' column where 'name' is 'NA' to 'simple'
+    result_BED_table['name'] = result_BED_table['name'].replace('NA', 'simple')
+
+    # Delete rows where 'Canonical' is 'NOT_CANONICAL', except for those with 'name' as 'orphan'
+    result_BED_table = result_BED_table[~((result_BED_table['Canonical'] == 'NOT_CANONICAL') & (result_BED_table['name'] != 'orphan'))]
+
+    # Drop the 'Canonical' column after filtering
+    result_BED_table.drop('Canonical', axis=1, inplace=True)
+
+    # Delete rows where 'name' is 'DUP_INTERSPERSED'
+    result_BED_table = result_BED_table[result_BED_table['name'] != 'DUP_INTERSPERSED']
+
+    # Delete rows where 'name' is 'COMPLEX_DUP'
+    result_BED_table = result_BED_table[result_BED_table['name'] != 'COMPLEX_DUP']
+    
+    # Update 'name' for rows with 'solo' or 'partnered' based on 'SubType'
+    result_BED_table['name'] = result_BED_table.apply(
+        lambda row: row['SubType'] if row['name'] in ['solo', 'partnered'] else row['name'], axis=1
+    )
+
+    # Delete the 'SubType' column
+    result_BED_table = result_BED_table.drop('SubType', axis=1)
+
+    # Applying the filter to get only the ones that have 1 transduction
+    result_BED_table = TD_filter(result_BED_table)
+
+    # From the PolyA_Length, get the 1st and 2nd values in separate columns
+    result_BED_table['PolyA_Length_1'] = result_BED_table['PolyA_Length'].apply(lambda x: x.split(',')[0] if x != 'NA' else x)
+    result_BED_table['PolyA_Length_2'] = result_BED_table['PolyA_Length'].apply(lambda x: x.split(',')[1] if x != 'NA' and len(x.split(',')) > 1 else 'NA')
+
+    # Delete the original PolyA_Length column
+    result_BED_table.drop('PolyA_Length', axis=1, inplace=True)
+
+    # Convert 'PolyA_Length' columns to numeric, converting 'NA' to NaN
+    result_BED_table['PolyA_Length_1'] = pd.to_numeric(result_BED_table['PolyA_Length_1'], errors='coerce')
+    result_BED_table['PolyA_Length_2'] = pd.to_numeric(result_BED_table['PolyA_Length_2'], errors='coerce')
+
+    # Transform TSD_Length & SVA_Hexamer columns to numeric
+    result_BED_table['TSD_Length'] = pd.to_numeric(result_BED_table['TSD_Length'], errors='coerce')
+    result_BED_table['SVA_Hexamer'] = pd.to_numeric(result_BED_table['SVA_Hexamer'], errors='coerce')
+    
+    # Replace all NaN values with 'NA'
+    result_BED_table.fillna('NA', inplace=True)
+    
+    # Apply the extraction function to create the new columns
+    result_BED_table[['FOR', 'TRUN', 'REV', 'DEL', 'DUP']] = result_BED_table.apply(extract_conformation_data, axis=1)
+    
+    # Create the 'Event' column: Combine the column name and 'Conformation'
+    result_BED_table['Event'] = result_BED_table.apply(lambda row: f"{row['name']}__{row['Conformation']}", axis=1)
+    result_BED_table['Event'] = result_BED_table['Event'].replace(
+            {'VNTR__NA': 'VNTR','DUP__NA': 'DUP', 'INV_DUP__NA': 'INV_DUP', 'NUMT__NA': 'NUMT', 'orphan__NA': 'orphan', 'simple__NA': 'simple'}
+        )
+    
+    # Delete the 'SubType' column
+    result_BED_table = result_BED_table.drop('Conformation_Ext', axis=1)
+    return result_BED_table
+
+def mut_bins(bins, table):
     """
     Classify mutations in each window of the bindatabase.
 
     Parameters:
     bins (list): List of windows in the format [(chromosome, start, end), ...]
-    result_BED_table (pandas.DataFrame): Table with mutation data
+    table (pandas.DataFrame): Table with mutation data
 
     Returns:
     pandas.DataFrame: Classified mutations in each window
     """
-    # Create a dictionary to map SubType to column names
-    subtype_cols = {
-        'solo_SVA': 'solo_SVA',
-        'solo_Alu': 'solo_Alu',
-        'solo_L1': 'solo_L1',
-        'partnered_SVA': 'partnered_SVA',
-        'partnered_L1': 'partnered_L1',
-        'orphan': 'orphan',
-        'simple': 'simple',
-        'VNTR': 'VNTR'
-    }
+    # Create a dictionary to map event types to column names
+    event_column = ['simple', 'Alu__TRUN+FOR+POLYA', 'orphan', 'L1__TRUN+FOR+POLYA',
+       'SVA__TD+MAST2+VNTR+SINE-R+POLYA', 'SVA__MAST2+VNTR+SINE-R+POLYA',
+       'L1__FOR+POLYA', 'L1__TD+FOR+POLYA',
+       'SVA__Hexamer+Alu-like+VNTR+SINE-R+POLYA',
+       'L1__TRUN+REV+DEL+FOR+POLYA', 'Alu__FOR+POLYA',
+       'SVA__VNTR+SINE-R+POLYA', 'L1__TRUN+REV+DEL+FOR+POLYA+TD+POLYA',
+       'SVA__Alu-like+VNTR+SINE-R+POLYA', 'SVA__SINE-R+POLYA',
+       'SVA__Hexamer+Alu-like+VNTR+SINE-R+POLYA+TD+POLYA',
+       'L1__TRUN+FOR+POLYA+TD+POLYA',
+       'SVA__MAST2+VNTR+SINE-R+POLYA+TD+POLYA',
+       'L1__TRUN+REV+DUP+FOR+POLYA', 'VNTR']
 
-    # Initialize the output df
-    df = pd.DataFrame(columns=['window', 'beg', 'end'] + list(subtype_cols.values()))
+    # Initialize the output DataFrame with columns: 'window', 'beg', 'end', and the event types
+    df = pd.DataFrame(columns=['window', 'beg', 'end'] + event_column)
 
-    # Iterate over each window
+    # Iterate over each window in bins
     for window in bins:
         chrom, start, end = window
-        window_df = result_BED_table[(result_BED_table['#ref'] == chrom) & (result_BED_table['beg'] >= start) & (result_BED_table['end'] <= end)]
+        # Filter mutations that fall within the current window
+        window_df = table[(table['#ref'] == chrom) &
+                                     (table['beg'] >= start) &
+                                     (table['end'] <= end)]
 
-        # Count the occurrences of each SubType in the window
-        counts = window_df['name'].value_counts().to_dict()
+        # Count the occurrences of each event type in the window
+        counts = window_df['Event'].value_counts().to_dict()
 
-        # Create a row for the output DataFrame
-        row = [chrom, start, end] + [counts.get(subtype, 0) for subtype in subtype_cols]
+        # Create a row for the current window
+        row = [chrom, start, end]
 
-        # Append the row to the output df
+        # For each event type, append the count (or 0 if not present) to the row
+        for event in event_column:
+            row.append(counts.get(event, 0))
+
+        # Append the row to the output DataFrame
         df.loc[len(df)] = row
+
     return df
 
-def calculate_normalized_values(res_table):
-    ''' 
-    Function to calculate the normalized values of each variant of each chromosome
-    '''
-    # Get unique values in the 'window' column
-    unique_chr_values = res_table['window'].unique()
+def classify_mutations_in_bins(chromosome_length, bin_size, merged_df):
+    """
+    Classify mutations into genomic bins based on chromosome length and bin size.
 
-    #new df to store the results
-    new_table = pd.DataFrame(columns=res_table.columns)
-    for chr_value in unique_chr_values:
+    Parameters:
+    chromosome_length (dict): Dictionary with chromosome lengths.
+    bin_size (int): The size of each genomic bin.
+    merged_df: DataFrame containing mutation data.
 
-        # Filter the rows for the current 'window' value
-        subset = res_table[res_table['window'] == chr_value]
+    Returns:
+    pandas.DataFrame: Classified mutations for each genomic bin.
+    """
+    # Get chromosome lengths
+    chr_length = formats.chrom_lengths_index(chromosome_length)
 
-        # Copy the values of 'beg' and 'end' columns
-        normalized_values = subset[['beg', 'end']]
+    # Generate bins for the genome, including 'chrX'
+    bins = gRanges.makeGenomicBins(chr_length, bin_size, [f'chr{i}' for i in range(1, 23)] + ['chrX'])[::-1]
 
-        # Calculate the sum of values for each column
-        total_values = subset[['solo_SVA', 'solo_Alu', 'solo_L1', 'partnered_SVA',
-                                'partnered_L1', 'orphan', 'simple', 'VNTR']].sum()
-        
-        # Divide each cell value by the total sum
-        normalized_values[['solo_SVA', 'solo_Alu', 'solo_L1', 'partnered_SVA',
-                           'partnered_L1', 'orphan', 'simple', 'VNTR']] = subset[['solo_SVA', 'solo_Alu', 'solo_L1', 'partnered_SVA',
-                                                                                    'partnered_L1', 'orphan', 'simple', 'VNTR']].div(total_values).values
-        
-        # Add the 'window' values back to the df
-        normalized_values['window'] = chr_value
+    # Classify mutations in each window of the genomic bins
+    res_table = mut_bins(bins, merged_df)
 
-        # Append the normalized values to the new df
-        new_table = pd.concat([new_table, normalized_values], ignore_index=True)
-    return new_table
+    return res_table
 
 def normalize_columns(df):
-    ''' 
-    Function to normalize columns of a given dataframe
     '''
+    Normalize columns in the dataframe starting from the 3rd column to the end.
+    Each column will be normalized by dividing by the sum of the column values.
+    '''
+    # Select columns from the 3rd column onward
     columns_to_normalize = df.columns[3:]
+    
     for column in columns_to_normalize:
+        # Get the sum of the column
         total_sum = df[column].sum()
+    
+        # If the total sum is not zero, normalize the column
         if total_sum != 0:
             df[column] = df[column] / total_sum
+    
     return df
+
+def probabilities_df(table):
+    # Get how many times each event is in the VCF table
+    name_distribution = table['Event'].value_counts()
+    
+    # Transform it to a df
+    name_distribution_df = pd.DataFrame({'Event': name_distribution.index, 'number': name_distribution.values})
+
+    # Calculate probabilities
+    total = name_distribution_df['number'].sum()
+    name_distribution_df['Probability'] = name_distribution_df['number'] / total
+    
+    # Drop the 'number' column
+    name_distribution_df = name_distribution_df.drop(columns=['number'])
+    
+    return name_distribution_df
 
 def add_columns(df1, df2, df3):
     ''' 
     Function to add start and end columns to the df based on probabilities
     '''
-    new_df = pd.DataFrame(columns=['#ref', 'beg', 'end', 'Length', 'Strand'])
+    new_df = pd.DataFrame(columns=['#ref', 'beg', 'end', 'Length'])
     for _, row in df3.iterrows():
-        name = row['name']
+        name = row['Event']
         prob_df = df2[df2[name] > 0]
         if prob_df.empty:
-            random_row = df1[df1['name'] == name].sample(n=1)
+            random_row = df1[df1['Event'] == name].sample(n=1)
         else:
-            name_df = df1[df1['name'] == name]
+            name_df = df1[df1['Event'] == name]
             if name_df.empty:
                 continue
             weights = prob_df[name].values
@@ -184,101 +308,63 @@ def add_columns(df1, df2, df3):
                 weights = np.ones(len(weights)) / len(weights)
             weights = np.repeat(weights, len(name_df) // len(weights) + 1)[:len(name_df)]
             random_row = name_df.sample(n=1, weights=weights)
-        new_df = new_df._append(random_row[['#ref', 'beg', 'end', 'Length', 'Strand']], ignore_index=True)
-    df3[['#ref', 'beg', 'end', 'Length', 'Strand']] = new_df
+        new_df = new_df._append(random_row[['#ref', 'beg', 'end', 'Length']], ignore_index=True)
+    df3[['#ref', 'beg', 'end', 'Length']] = new_df
     return df3
 
-def main(vcf_path_all, vcf_path_class, bin_size, chromosome_length, num_events):
-    # Print the paths of the input files
-    print(f'VCF file with all deletions: {vcf_path_all}')
-    print(f'VCF file with classified deletions: {vcf_path_class}')
-    print(f'Chromosome length file: {chromosome_length}')
-    print(f'Defined number of events: {num_events}')
-    
-    # Process VCF file with ALL deletions
-    result_df = read_vcf_file_BED(vcf_path_all)
-    result_BED_table_all_deletion = result_df.rename(columns={'Type_SV': 'name', 'Chromosome':'#ref', 'Start_position': 'beg', 'End_position':'end', 'Family':'SubType'})
-    result_BED_table_all_deletion.fillna('NA', inplace=True)
-
-    # Process VCF with classified deletions
-    result_df = read_vcf_file_BED(vcf_path_class)
-    result_BED_table_class_deletion = result_df.rename(columns={'Type_SV': 'name', 'Chromosome':'#ref', 'Start_position': 'beg', 'End_position':'end', 'Family':'SubType'})
-    result_BED_table_class_deletion.fillna('NA', inplace=True)
-
-    # Merge the two VCF files (processed)
-    merged_df = merge_dataframes(result_BED_table_class_deletion, result_BED_table_all_deletion)
-
-    # Add end column
-    na_rows = merged_df['end'] == 'NA'
-    merged_df.loc[na_rows, 'end'] = merged_df.loc[na_rows, 'beg'] + merged_df.loc[na_rows, 'Length']
-    merged_df['end'] = merged_df['end'].astype(int)
-
-    # Update the names of the events
-    merged_df['name'] = merged_df['name'] + '_' + merged_df['SubType'].apply(lambda x: x if x in ['SVA', 'Alu', 'L1'] else '')
-    merged_df = merged_df.drop('SubType', axis=1)
-    merged_df['name'] = merged_df['name'].apply(lambda x: x[:-1] if x.endswith('_') else x)
-    merged_df['name'] = merged_df['name'].replace('NA', 'simple')
-
-    # Remove non desired ones
-    merged_df = merged_df[~merged_df['name'].isin(['partnered_Alu', 'chimera', 'PSD', 'partnered_SVA', 'partnered_L1'])]
-
-    # Chromosomes length
-    chr_length = formats.chrom_lengths_index(chromosome_length)
-
-    # Bins to fragment the genome
-    bins = gRanges.makeGenomicBins(chr_length, bin_size, [f'chr{i}' for i in range(1, 23)])[::-1]
-
-    # Classify mutations in each window of the bindatabase
-    res_table = mut_bins(bins, merged_df)
-    
-    # Normalize values
-    prob_INS = calculate_normalized_values(res_table)
-    prob_INS.fillna(0.00, inplace=True)
-    
-    # Table of probabilities normalized by column:
-    prob_INS_col_normalized = normalize_columns(prob_INS)
-
-    # Get how many times each event is in the VCF table
-    name_distribution = merged_df['name'].value_counts()
-
-    # Transform it to a df
-    name_distribution_df = pd.DataFrame({'name': name_distribution.index, 'number': name_distribution.values})
-
-    # Calculate probabilities
-    total = name_distribution_df['number'].sum()
-    name_distribution_df['probability'] = name_distribution_df['number'] / total
-
-    # # Generate the df with random numbers based on the probabilities
-    sampled_names = np.random.choice(name_distribution_df['name'], size=num_events, p=name_distribution_df['probability'])
-    df_insertions = pd.DataFrame({'name': sampled_names})
+def generate_deletion_events(probabilities_table, num_events, deletions_table, genome_wide_distribution):
+    # Generate name of the events based on their proportions
+    sampled_names = np.random.choice(probabilities_table['Event'], size=num_events, p=probabilities_table['Probability'])
+    table_events = pd.DataFrame({'Event': sampled_names})
 
     # Add the info for the deletions
-    df3 = add_columns(merged_df, prob_INS_col_normalized, df_insertions)
-
+    df3 = add_columns(deletions_table, genome_wide_distribution, table_events)
+    
     # Add a new column 'Event_Type' with the value 'insertion'
     df3['Event_Type'] = 'Deletion'
 
-    # Reorder columns to make 'Event_Type' the 4th column
-    new_order = df3.columns.tolist()
-    new_order.remove('Event_Type')
-    new_order.insert(3, 'Event_Type')
-
+    # Define the new order of columns first
+    new_order = ['#ref', 'beg', 'end', 'Event_Type', 'Event', 'Length']
+    
     # Update order and name of columns
     df3 = df3[new_order]
-    new_order = ['#ref', 'beg', 'end', 'Event_Type', 'name', 'Length']
-    df_copy = df3[new_order].copy()
+    
+    # Copy the DataFrame and rename 'Length' column to 'Total_Length'
+    df_copy = df3.copy()
     df_copy.rename(columns={'Length': 'Total_Length'}, inplace=True)
 
-    # Save final output
-    df_copy.to_csv('Deletions_table.tsv', sep='\t', index=False)
+    return df_copy
+
+def main(vcf_path, path_chromosome_length, num_events, bin_size,):
+    # Print the paths of the input files
+    print(f'VCF file with deletion data: {vcf_path}')
+    print(f'Chromosome length file: {path_chromosome_length}')
+    print(f'Number of events: {num_events}')
+    print(f'Size of genomic bins (default: 1000000).: {bin_size}')
+
+    # Get data from VCF file
+    table = read_vcf_file_BED(vcf_path)
+    
+    # Process the data
+    processed_table = process_bed_table(table)
+    
+    # Obtain genome-wide distribution of the events & normalize it
+    genome_wide_distribution = classify_mutations_in_bins(path_chromosome_length,bin_size,processed_table)
+    normalize_columns(genome_wide_distribution)
+    
+    # Obtain probability of each event
+    probabilities = probabilities_df(processed_table)
+    
+    # Generate the deletion events & save the output
+    deletion_events = generate_deletion_events(probabilities,num_events,processed_table,genome_wide_distribution)
+    deletion_events.to_csv('Deletions_table.tsv', sep='\t', index=False)
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description='Process deletions from VCF to BED format.')
-    parser.add_argument('vcf_path_all', type=str, help='Path to the VCF file containing all deletions.')
-    parser.add_argument('vcf_path_class', type=str, help='Path to the VCF file containing classified deletions.')
-    parser.add_argument('chromosome_length', type=str, help='Path to the chromosome length file.')
+    parser.add_argument('vcf_path', type=str, help='Path to the VCF file containing deletion data.')
+    parser.add_argument('path_chromosome_length', type=str, help='Path to the chromosome length file.')
     parser.add_argument('num_events', type=int, help='Number of events to sample (mandatory).')
     parser.add_argument('--bin_size', type=int, default=1000000, help='Size of genomic bins (default: 1000000).')
 
     args = parser.parse_args()
-    main(args.vcf_path_all, args.vcf_path_class, args.bin_size, args.chromosome_length, args.num_events)
+    main(args.vcf_path, args.path_chromosome_length, args.num_events, args.bin_size,)
