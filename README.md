@@ -58,8 +58,7 @@ Second module objective is to generate from determine distributions the final se
 Third module generates deletions events. It takes the data from VCF and based on the determine number of events to simulate, selects the regions to be deleted, and returns a data frame with the regions to be removed from the genome.
 
 **Input:**
-- VCF SVs classified deletions
-- VCF SVs unclassified deletions
+- VCF with deletion data
 - Total number of events to simulate
 - Chromosomes length (.txt)
 - Window size for genome segmentation (by default 1 Mega base)
@@ -102,7 +101,13 @@ Fifth module aims to generate sub-clonal variant reads with different coverage a
 
 
 ## Data
-Available data to run the modules available at: https://zenodo.org/records/14629433?token=eyJhbGciOiJIUzUxMiJ9.eyJpZCI6IjkxODlmMGVmLTU4ZmMtNGQ5NC04MmRmLWNiNTc3NWRlZGEzYSIsImRhdGEiOnt9LCJyYW5kb20iOiIzMTQyNDg4MjcyYTI2ZDRmZTI3MTcwOGJkNTEzY2RiNyJ9.0ikZdwVU-K6ffwjmEb3HudqHvyz52Umt0XZyO91t_1ffEeP3VTV9iKaRhTWBf8ABoF03R24WMKzMu23yDjpX3Q 
+Available data to run the modules for versions 0.1 and 0.2 available at:
+
+- Version 0.2:
+[Link to Zenodo](https://zenodo.org/records/14967709?token=eyJhbGciOiJIUzUxMiJ9.eyJpZCI6IjQ0NDU5OWVjLTZiM2EtNDllOC05YzNkLTE3YjNiM2NhNjVmNCIsImRhdGEiOnt9LCJyYW5kb20iOiI2NGFkOGIxNGY4YmQyOWFlNzlhZGU1NzEwNzZiYmEzNSJ9.ueQ38ZbCp-OBSGps4-_Q5KUDtJ2JoGPhUApvrzHgtZ6j5IqzLIdrik4BEPhVqteQl4yxZ9en_A57mmS_U3zayQ)
+
+- Version 0.1:
+[Link to Zenodo](https://zenodo.org/records/14629433?token=eyJhbGciOiJIUzUxMiJ9.eyJpZCI6IjkxODlmMGVmLTU4ZmMtNGQ5NC04MmRmLWNiNTc3NWRlZGEzYSIsImRhdGEiOnt9LCJyYW5kb20iOiIzMTQyNDg4MjcyYTI2ZDRmZTI3MTcwOGJkNTEzY2RiNyJ9.0ikZdwVU-K6ffwjmEb3HudqHvyz52Umt0XZyO91t_1ffEeP3VTV9iKaRhTWBf8ABoF03R24WMKzMu23yDjpX3Q)
 
 ## Developers
 SVModeller has been developed by Ismael Vera Muñoz at the Repetitive DNA Biology (REPBIO) Lab at the Centre for Genomic Regulation (CRG) (2024-2025).
