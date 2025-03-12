@@ -20,51 +20,51 @@ Structural Variants generated: Mobile Element Insertions (MEIs) of Alu, LINE-1 a
 This module aims to process the insertion data from the VCF obtaining different distributions such as how the different events are genome-wide spread, the distribution of the different features that constitute each event, and the probability of finding each event on the genome.
 
 **Input:**
-- VCF with insertion data
-- Chromosomes length (.txt)
-- Window size for genome segmentation (by default 1 Mega base)
+- VCF with insertion data _(VCF_Insertions.vcf)_
+- Chromosomes length _(chr_length.txt)_
+- OPTIONAL: Window size for genome segmentation, by default 1 Mega base _(integer number)_
   
 **Output:**
-- Genome-wide distribution (.tsv)
-- Insertion features (.tsv)
-- Event probabilities (.tsv)
-- List of VNTR motifs (.txt)
-- List of SVA VNTR motifs (.txt)
+- Genome-wide distribution _(Genome_Wide_Distribution.tsv.tsv)_
+- Insertion features _(Insertion_Features.tsv)_
+- Event probabilities _(Probabilities.tsv)_
+- List of VNTR motifs _(Separated_Motifs.tsv)_
+- List of SVA VNTR motifs _(SVA_VNTR_Motifs.txt)_
 
 ### Module 2
 Second module objective is to generate from determine distributions the final sequences that will be inserted in a genome. It takes the genome-wide and insertion features distributions, even from module 1 or user-defined ones with the same structure as the ones derived from module 1. From these distributions samples different values to build the new events and returns their generated sequence.
 
 **Input:**
-- Genome-Wide Distribution (.tsv)
-- Insertion Features (.tsv)
-- Event Probabilities (.tsv)
-- Total number of events to simulate 
-- Table with source loci to LINE-1 transductions (.tsv)
-- Table with source loci to SVA transductions (.tsv)
-- Consensus sequences (.fasta)
-- Reference genome (.fasta)
-- List of VNTR motifs (.txt)
-- List of SVA VNTR motifs (.txt)
+- Genome-Wide Distribution _(Genome_Wide_Distribution.tsv.tsv)_
+- Insertion Features _(Insertion_Features.tsv)_
+- Event Probabilities or Number of each event to simulate _(Probabilities.tsv)_
+- OPTIONAL: Just in case of providing probabilities, total number of events to simulate _(integer number)_
+- Table with source loci to LINE-1 transductions _(source_loci_LINE1.tsv)_
+- Table with source loci to SVA transductions _(source_loci_SVA.tsv)_
+- Consensus sequences _(consensus_sequences_complete.fa)_
+- Reference genome _(chm13v2.0.fa)_
+- List of VNTR motifs _(Separated_Motifs.tsv)_
+- List of SVA VNTR motifs _(SVA_VNTR_Motifs.txt)_
 
 **Output:**
-- New insertion events sequences with their corresponding features (.tsv)
+- New insertion events sequences with their corresponding features _(Insertions_table.tsv)_
 
 **Mandatory input columns**
-- Genome-Wide Distribution: 'window', 'beg', 'end', each event conformation as a column (i.e. 'Alu__FOR+POLYA', 'VNTR', 'INV_DUP')
-- Insertion features: 'Event', 'Length', 'Strand', 'TSD_Length', 'TD_5', 'TD_3', 'SVA_Hexamer', 'SVA_VNTR_Length', 'TD_orphan_Length', 'VNTR_Num_Motifs', 'PolyA_Length_1', 'PolyA_Length_2', 'FOR', 'TRUN', 'REV', 'DEL', 'DUP'
-- Event Probabilities: 'Event' and 'Probability' or 'Number'
+- Genome-Wide Distribution _(Genome_Wide_Distribution.tsv.tsv)_: 'window', 'beg', 'end', each event conformation as a column (i.e. 'Alu__FOR+POLYA', 'VNTR', 'INV_DUP')
+- Insertion features _(Insertion_Features.tsv)_: 'Event', 'Length', 'Strand', 'TSD_Length', 'TD_5', 'TD_3', 'SVA_Hexamer', 'SVA_VNTR_Length', 'TD_orphan_Length', 'VNTR_Num_Motifs', 'PolyA_Length_1', 'PolyA_Length_2', 'FOR', 'TRUN', 'REV', 'DEL', 'DUP'
+- Event Probabilities _(Probabilities.tsv)_: 'Event' and 'Probability' (probabilities between 0 and 1)or 'Number' (number of each event to simulate)
    
 ### Module 3
 Third module generates deletions events. It takes the data from VCF and based on the determine number of events to simulate, selects the regions to be deleted, and returns a data frame with the regions to be removed from the genome.
 
 **Input:**
-- VCF with deletion data
-- Total number of events to simulate
-- Chromosomes length (.txt)
-- Window size for genome segmentation (by default 1 Mega base)
+- VCF with deletion data _(VCF_Deletions.vcf)_
+- Total number of events to simulate _(integer number)_
+- Chromosomes length _(chr_length.txt)_
+- OPTIONAL: Window size for genome segmentation, by default 1 Mega base _(integer number)_
 
 **Output:**
-- Deletion regions (.tsv)
+- Deletion regions _(Deletions_table.tsv)_
 
 ### Module 4
 Fourth module results in a modified genome. It takes data frames of insertion and deletion data (even from modules 2 and 3 or user-defined) and modifies a reference genome with the determine information. The result is the reference genome with the specified changes.
@@ -72,30 +72,30 @@ Fourth module results in a modified genome. It takes data frames of insertion an
 **Input:**
 - Events to mofidy reference genome (.tsv)
 - Reference genome (.fasta)
-- Optional additional events table (.tsv)
+- OPTIONAL: additional events table (.tsv)
 
 **Output:**
-- Modified reference genome (.fasta)
-- Table with added events and their current positions in the genome (.tsv)
+- Modified reference genome _(Modified_Reference_Genome.fasta)_
+- Table with added events and their current positions in the genome _(Sorted_Genomic_Events.tsv)_
 
 **Mandatory input columns**
 - Events to mofidy reference genome: '#ref', 'beg', 'Length', 'Event_Type', 'Sequence_Insertion'
 
 ### Module 5
-Fifth module aims to generate sub-clonal variant reads with different coverage and allele frequency levels. It takes the reference and modified genomes, as well as the method file (based on error model, quality score, or fastQ files) and the corresponding method file, the technology of the simulated reads (Oxford Nanopore, PacBio, PacBio-HiFi), and desired coverage and allele frequency.
+Fifth module aims to generate sub-clonal variant reads with different coverage and allele frequency levels. It takes the reference and modified genomes, as well as the method file (based on error model, quality score, or fastQ files) and the corresponding method file, the technology of the simulated reads (Oxford Nanopore - ONT, PacBio - PB, PacBio-HiFi - HiFi), and desired coverage and allele frequency. Please ensure consistency in the technology used across all files
 
 **Input:**
 - Reference genome (.fasta)
 - Modified reference genome (.fasta)
-- Method to generate reads
-- Method file
-- Allele frequency
-- Coverage
-- Output directory
-- Technology of generated reads
+- Method to generate reads _(choices='quality_score', 'error_model', 'training')_
+- Method file _(string, '.model' or '.fastq' i.e. ERRHMM-ONT-HQ.model)_
+- Allele frequency _(decimal number between 0-1. i.e. 0.25)_
+- Coverage _(integer number: 30 for 30x)_
+- Output directory _(file name)_
+- Technology of generated reads _(ONT, PB, HiFi)_
 
 **Output:**
-- Alignment (.bam)
+- Alignment _(combined_final_alignment.bam)_
 - Modified genome reads (.fastq)
 - Reference genome reads (.fastq)
 
@@ -113,4 +113,4 @@ Available data to run the modules for versions 0.1 and 0.2 available at:
 SVModeller has been developed by Ismael Vera Muñoz at the Repetitive DNA Biology (REPBIO) Lab at the Centre for Genomic Regulation (CRG) (2024-2025).
 
 ## License
-SVModeller is distributed under the AGPL-3.0. Consult the [LICENSE] (https://github.com/REPBIO-LAB/SVModeller/blob/main/LICENSE) file for more information.
+SVModeller is distributed under the AGPL-3.0. Consult the [LICENSE](https://github.com/REPBIO-LAB/SVModeller/blob/main/LICENSE) file for more information.
