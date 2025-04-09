@@ -2,6 +2,21 @@
 
 # Generate BAM file with reads at different coverage and allele frequency levels
 
+# Input:
+# Reference genome (.fasta)
+# Modified reference genome (.fasta)
+# Method to generate reads (choices='quality_score', 'error_model', 'training')
+# Method file (string, '.model' or '.fastq' i.e. ERRHMM-ONT-HQ.model)
+# Allele frequency (decimal number between 0-1. i.e. 0.25)
+# Coverage (integer number: 30 for 30x)
+# Output directory (file name)
+# Technology of generated reads (ONT, PB, HiFi)
+
+# Output:
+# Alignment (combined_final_alignment.bam)
+# Modified genome reads (.fastq)
+# Reference genome reads (.fastq)
+
 import subprocess
 import os
 import argparse
