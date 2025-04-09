@@ -2,6 +2,15 @@
 
 # Modify reference genome
 
+# Input:
+# - Events to mofidy reference genome (.tsv)
+# - Reference genome (.fasta)
+# - OPTIONAL: additional events table (.tsv)
+
+# Output:
+# - Modified reference genome (Modified_Reference_Genome.fasta)
+# - Table with added events and their current positions in the genome (Sorted_Genomic_Events.tsv)
+
 import argparse
 import pandas as pd
 import formats
