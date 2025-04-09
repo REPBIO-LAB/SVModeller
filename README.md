@@ -67,7 +67,7 @@ Third module generates deletions events. It takes the data from VCF and based on
 
 **Output:**
 - Deletion regions _(Deletions_table.tsv)_
-- OPTIONAL: Variant Calling File (VCF) with insertion data
+- OPTIONAL: Variant Calling File (VCF) with deletion data
 
 ### Module 4
 Fourth module results in a modified genome. It takes data frames of insertion and deletion data (even from modules 2 and 3 or user-defined) and modifies a reference genome with the determine information. The result is the reference genome with the specified changes.
