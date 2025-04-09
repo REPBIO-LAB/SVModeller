@@ -2,6 +2,22 @@
 
 # Model probabilities, insertion features, and genome wide distribution to generate new events
 
+# Input:
+# - Genome-Wide Distribution 
+# - Insertion Features 
+# - Event Probabilities or Number of each event to simulate 
+# - OPTIONAL: Just in case of providing probabilities, total number of events to simulate
+# - Table with source loci to LINE-1 transductions
+# - Table with source loci to SVA transductions
+# - Consensus sequences
+# - Reference genome 
+# - List of VNTR motifs
+# - List of SVA VNTR motifs 
+
+#Output:
+# - New insertion events sequences with their corresponding features (Insertions_table.tsv)
+# - OPTIONAL: Variant Calling File (VCF) with insertion data
+
 import argparse
 import numpy as np
 import pandas as pd
@@ -10,6 +26,8 @@ from distfit import distfit
 import random
 import statistics
 import pysam
+import formats
+import datetime
 
 def consensus_seqs(file_path):
     ''' 
@@ -501,8 +519,8 @@ def VNTR_insertions(row, motifs_file):
             sequence += motif * repetitions
             if remainder > 0:
                 sequence += motif[:remainder]  # Add partial motif
-    
-    return sequence
+
+    return sequence, selected_motifs
 
 def DUP_insertions(row,reference_fasta):
     ''' 
@@ -1538,131 +1556,132 @@ def generate_insertion_seq(row, motifs_file, reference_fasta, dict_consensus, SV
 
     # VNTR
     if row['name'] == 'VNTR':
-        return VNTR_insertions(row, motifs_file) 
+        sequence, selected_motifs = VNTR_insertions(row, motifs_file)
+        return sequence, selected_motifs
     
     # DUPLICATIONS
     elif row['name'] == 'DUP':
-        return DUP_insertions(row, reference_fasta)   
+        return DUP_insertions(row, reference_fasta), 0
     
     # NUMT
     elif row['name'] == 'NUMT':
-        return NUMT_insertions(row, dict_consensus)
+        return NUMT_insertions(row, dict_consensus), 0
 
     # INVERSE DUPLICATIONS  
     elif row['name'] == 'INV_DUP':
-        seq = DUP_insertions(row, reference_fasta) 
-        return inverse_sequence(seq)
+        seq = DUP_insertions(row, reference_fasta)
+        return inverse_sequence(seq), 0
 
     # ORPHAN
     elif row['name'] == 'orphan':
-        return orphan_insertions(row, reference_fasta)   
+        return orphan_insertions(row, reference_fasta)   , 0
 
     # Alu__FOR+POLYA
     elif row['name'] == 'Alu__FOR+POLYA':
-        return Alu__FOR_POLYA_insertions(row, dict_consensus, reference_fasta)   
+        return Alu__FOR_POLYA_insertions(row, dict_consensus, reference_fasta)   , 0
 
     # Alu__TRUN+FOR+POLYA
     elif row['name'] == 'Alu__TRUN+FOR+POLYA':
-        return Alu__FOR_POLYA_insertions(row, dict_consensus, reference_fasta)   
+        return Alu__FOR_POLYA_insertions(row, dict_consensus, reference_fasta)   , 0
 
     # L1__FOR+POLYA
     elif row['name'] == 'L1__FOR+POLYA':
-        return L1__FOR_POLYA_insertions(row, dict_consensus, reference_fasta)   
+        return L1__FOR_POLYA_insertions(row, dict_consensus, reference_fasta)   , 0
     
     # L1__TRUN+FOR+POLYA
     elif row['name'] == 'L1__TRUN+FOR+POLYA':
-        return L1__FOR_POLYA_insertions(row, dict_consensus, reference_fasta)   
+        return L1__FOR_POLYA_insertions(row, dict_consensus, reference_fasta) , 0  
     
     # L1__TD+FOR+POLYA
     elif row['name'] == 'L1__TD+FOR+POLYA':
-        return L1__TD_FOR_POLYA_insertions(row, dict_consensus, reference_fasta)   
+        return L1__TD_FOR_POLYA_insertions(row, dict_consensus, reference_fasta)   , 0
 
     # L1__FOR+POLYA+TD+POLYA
     elif row['name'] == 'L1__FOR+POLYA+TD+POLYA':
-        return L1__FOR_POLYA_TD_POLYA_insertions(row, dict_consensus, reference_fasta)   
+        return L1__FOR_POLYA_TD_POLYA_insertions(row, dict_consensus, reference_fasta)   , 0
 
     # L1__TRUN+FOR+POLYA+TD+POLYA
     elif row['name'] == 'L1__TRUN+FOR+POLYA+TD+POLYA':
-        return L1__FOR_POLYA_TD_POLYA_insertions(row, dict_consensus, reference_fasta)   
+        return L1__FOR_POLYA_TD_POLYA_insertions(row, dict_consensus, reference_fasta)   , 0
 
     # L1__TRUN+REV+BLUNT+FOR+POLYA
     elif row['name'] == 'L1__TRUN+REV+BLUNT+FOR+POLYA':
-        return L1__TRUN_REV_BLUNT_FOR_POLYA_insertions(row, dict_consensus, reference_fasta) 
+        return L1__TRUN_REV_BLUNT_FOR_POLYA_insertions(row, dict_consensus, reference_fasta) , 0
 
     # L1__TRUN+REV+BLUNT+FOR+POLYA+TD+POLYA
     elif row['name'] == 'L1__TRUN+REV+BLUNT+FOR+POLYA+TD+POLYA':
-        return L1__TRUN_REV_BLUNT_FOR_POLYA_TD_POLYA_insertions(row, dict_consensus, reference_fasta) 
+        return L1__TRUN_REV_BLUNT_FOR_POLYA_TD_POLYA_insertions(row, dict_consensus, reference_fasta) , 0
     
     # L1__TRUN+REV+DUP+FOR+POLYA
     elif row['name'] == 'L1__TRUN+REV+DUP+FOR+POLYA':
-        return L1__TRUN_REV_DUP_FOR_POLYA_insertions(row, dict_consensus, reference_fasta) 
+        return L1__TRUN_REV_DUP_FOR_POLYA_insertions(row, dict_consensus, reference_fasta) , 0
 
     # L1__TRUN+REV+DUP+FOR+POLYA+TD+POLYA
     elif row['name'] == 'L1__TRUN+REV+DUP+FOR+POLYA+TD+POLYA':
-        return L1__TRUN_REV_DUP_FOR_POLYA_TD_POLYA_insertions(row, dict_consensus, reference_fasta) 
+        return L1__TRUN_REV_DUP_FOR_POLYA_TD_POLYA_insertions(row, dict_consensus, reference_fasta) , 0
 
     # L1__TRUN+REV+DEL+FOR+POLYA
     elif row['name'] == 'L1__TRUN+REV+DEL+FOR+POLYA':
-        return L1__TRUN_REV_DEL_FOR_POLYA_insertions(row, dict_consensus, reference_fasta) 
+        return L1__TRUN_REV_DEL_FOR_POLYA_insertions(row, dict_consensus, reference_fasta) , 0
     
     # L1__REV+DEL+FOR+POLYA
     elif row['name'] == 'L1__REV+DEL+FOR+POLYA':
-        return L1__TRUN_REV_DEL_FOR_POLYA_insertions(row, dict_consensus, reference_fasta) 
+        return L1__TRUN_REV_DEL_FOR_POLYA_insertions(row, dict_consensus, reference_fasta) , 0
 
     # L1__TRUN+REV+DEL+FOR+POLYA+TD+POLYA
     elif row['name'] == 'L1__TRUN+REV+DEL+FOR+POLYA+TD+POLYA':
-        return L1__TRUN_REV_DEL_FOR_POLYA_TD_POLYA_insertions(row, dict_consensus, reference_fasta) 
+        return L1__TRUN_REV_DEL_FOR_POLYA_TD_POLYA_insertions(row, dict_consensus, reference_fasta) , 0
 
     # SVA__SINE-R+POLYA
     elif row['name'] == 'SVA__SINE-R+POLYA':
-        return SVA__SINE_R_POLYA_insertions(row, dict_consensus, reference_fasta) 
+        return SVA__SINE_R_POLYA_insertions(row, dict_consensus, reference_fasta) , 0
 
     # SVA__VNTR+SINE-R+POLYA
     elif row['name'] == 'SVA__VNTR+SINE-R+POLYA':
-        return SVA__VNTR_SINE_R_POLYA_insertions(row, dict_consensus, reference_fasta, SVA_VNTR_list)    
+        return SVA__VNTR_SINE_R_POLYA_insertions(row, dict_consensus, reference_fasta, SVA_VNTR_list)   , 0 
 
     # SVA__Alu-like+VNTR+SINE-R+POLYA
     elif row['name'] == 'SVA__Alu-like+VNTR+SINE-R+POLYA':
-        return SVA__Alu_like_VNTR_SINE_R_POLYA_insertions(row, dict_consensus, reference_fasta, SVA_VNTR_list)    
+        return SVA__Alu_like_VNTR_SINE_R_POLYA_insertions(row, dict_consensus, reference_fasta, SVA_VNTR_list)    , 0
 
     # SVA__MAST2+VNTR+SINE-R+POLYA
     elif row['name'] == 'SVA__MAST2+VNTR+SINE-R+POLYA':
-        return SVA__MAST2_VNTR_SINE_R_POLYA_insertions(row, dict_consensus, reference_fasta, SVA_VNTR_list)  
+        return SVA__MAST2_VNTR_SINE_R_POLYA_insertions(row, dict_consensus, reference_fasta, SVA_VNTR_list)  , 0
 
     # SVA__TD+MAST2+VNTR+SINE-R+POLYA
     elif row['name'] == 'SVA__TD+MAST2+VNTR+SINE-R+POLYA':
-        return SVA__TD_MAST2_VNTR_SINE_R_POLYA_insertions(row, dict_consensus, reference_fasta, SVA_VNTR_list)    
+        return SVA__TD_MAST2_VNTR_SINE_R_POLYA_insertions(row, dict_consensus, reference_fasta, SVA_VNTR_list)  , 0  
 
     # SVA__SINE-R+POLYA+TD+POLYA
     elif row['name'] == 'SVA__SINE-R+POLYA+TD+POLYA':
-        return SVA__SINE_R_POLYA_TD_POLYA_insertions(row, dict_consensus, reference_fasta)   
+        return SVA__SINE_R_POLYA_TD_POLYA_insertions(row, dict_consensus, reference_fasta)   , 0
 
     # SVA__VNTR+SINE-R+POLYA+TD+POLYA
     elif row['name'] == 'SVA__VNTR+SINE-R+POLYA+TD+POLYA':
-        return SVA__VNTR_SINE_R_POLYA_TD_POLYA_insertions(row, dict_consensus, reference_fasta, SVA_VNTR_list)
+        return SVA__VNTR_SINE_R_POLYA_TD_POLYA_insertions(row, dict_consensus, reference_fasta, SVA_VNTR_list), 0
 
     # SVA__Alu-like+VNTR+SINE-R+POLYA+TD+POLYA
     elif row['name'] == 'SVA__Alu-like+VNTR+SINE-R+POLYA+TD+POLYA':
-        return SVA__Alu_like_VNTR_SINE_R_POLYA_TD_POLYA_insertions(row, dict_consensus, reference_fasta, SVA_VNTR_list)
+        return SVA__Alu_like_VNTR_SINE_R_POLYA_TD_POLYA_insertions(row, dict_consensus, reference_fasta, SVA_VNTR_list), 0
 
     # SVA__MAST2+VNTR+SINE-R+POLYA+TD+POLYA
     elif row['name'] == 'SVA__MAST2+VNTR+SINE-R+POLYA+TD+POLYA':
-        return SVA__MAST2_VNTR_SINE_R_POLYA_TD_POLYA_insertions(row, dict_consensus, reference_fasta, SVA_VNTR_list)  
+        return SVA__MAST2_VNTR_SINE_R_POLYA_TD_POLYA_insertions(row, dict_consensus, reference_fasta, SVA_VNTR_list)  , 0
 
     # SVA__Hexamer+Alu-like+VNTR+SINE-R+POLYA
     elif row['name'] == 'SVA__Hexamer+Alu-like+VNTR+SINE-R+POLYA':
-        return SVA__Hexamer_Alu_like_VNTR_SINE_R_POLYA_insertions(row, dict_consensus, reference_fasta, SVA_VNTR_list)    
+        return SVA__Hexamer_Alu_like_VNTR_SINE_R_POLYA_insertions(row, dict_consensus, reference_fasta, SVA_VNTR_list)    , 0
 
     # SVA__TD+Hexamer+Alu-like+VNTR+SINE-R+POLYA
     elif row['name'] == 'SVA__TD+Hexamer+Alu-like+VNTR+SINE-R+POLYA':
-        return SVA__TD_Hexamer_Alu_like_VNTR_SINE_R_POLYA_insertions(row, dict_consensus, reference_fasta, SVA_VNTR_list)    
+        return SVA__TD_Hexamer_Alu_like_VNTR_SINE_R_POLYA_insertions(row, dict_consensus, reference_fasta, SVA_VNTR_list)    , 0
     
     # SVA__Hexamer+Alu-like+VNTR+SINE-R+POLYA+TD+POLYA
     elif row['name'] == 'SVA__Hexamer+Alu-like+VNTR+SINE-R+POLYA+TD+POLYA':
-        return SVA__Hexamer_Alu_like_VNTR_SINE_R_POLYA_TD_POLYA_insertions(row, dict_consensus, reference_fasta, SVA_VNTR_list)   
+        return SVA__Hexamer_Alu_like_VNTR_SINE_R_POLYA_TD_POLYA_insertions(row, dict_consensus, reference_fasta, SVA_VNTR_list)   , 0
 
     else:
-        return 0
+        return '', 0
     
 def reverse_complementary(seq):
     ''' 
@@ -1717,7 +1736,299 @@ def update_sequences(df_insertions):
 
     return df_insertions
 
-def main(consensus_path,probabilities_numbers_path,insertion_features_path,genome_wide_path,source_L1_path,source_SVA_path,motifs_path,SVA_VNTR_path,reference_fasta_path,num_events):
+# Function to process each row's 'name' value
+def process_name(name):
+    if '__' in name:  # Case when there is '__' in the name
+        fam_n, conformation = name.split('__', 1)
+        itype_n = 'partnered' if 'TD' in conformation else 'solo'
+    else:  # Case when there is no '__' in the name
+        fam_n, conformation = np.nan, np.nan
+        itype_n = name
+    
+    return pd.Series([itype_n, conformation, fam_n])
+
+# Function to generate the HEXAMER_SEQ column
+def generate_hexamer_seq(row):
+    # Check if 'FAM_N' contains 'SVA' and 'CONFORMATION' contains 'Hexamer'
+    if pd.notna(row['FAM_N']) and 'SVA' in row['FAM_N'] and pd.notna(row['CONFORMATION']) and 'Hexamer' in row['CONFORMATION']:
+        hexamer = 'CCCTCT'
+        try:
+            # Assuming HEXAMER_LEN is a column with the desired hexamer length
+            sva_hexamer_length = int(row['HEXAMER_LEN'])  # Desired length of hexamer
+            # Generate the hexamer sequence
+            hexamer_seq = hexamer * (sva_hexamer_length // 6) + hexamer[:sva_hexamer_length % 6]
+            return hexamer_seq
+        except (ValueError, TypeError):
+            return np.nan  # Return NaN if there's an issue with the length
+    return np.nan  # Return NaN if conditions are not met
+
+# Function to generate TSD sequence from the reference fasta file
+def generate_tsd_seq(row, reference_fasta):
+    # Check if 'beg' and 'TSD_LEN' are valid
+    if pd.notna(row['beg']) and pd.notna(row['TSD_LEN']):
+        try:
+            beg = int(row['beg'])
+            tsd_len = int(row['TSD_LEN'])
+            start_tsd = beg - tsd_len
+
+            # Fetch the sequence from the reference FASTA file using pysam
+            with pysam.FastaFile(reference_fasta) as fasta_file:
+                TSD = fasta_file.fetch(row['#ref'], start_tsd, beg)  # Extract the sequence
+                return TSD.upper()
+        except (ValueError, TypeError, KeyError):
+            return np.nan  # Return NaN if there's an issue with the length or values
+    return np.nan  # Return NaN if either 'beg' or 'TSD_LEN' is missing or invalid
+
+# Function to generate sequence for 3PRIME_TD
+def generate_3prime_td_seq(row, reference_fasta):
+    # Fetch the sequence for 3PRIME_TD_SEQ if there's a value in 3PRIME_NB_TD
+    if pd.notna(row['3PRIME_NB_TD']):
+        try:
+            with pysam.FastaFile(reference_fasta) as fasta_file:
+                transduction = fasta_file.fetch(row['SRC_ref'], row['TD_beg'], row['TD_end'])
+                return transduction
+        except (KeyError, ValueError):
+            return np.nan
+    return np.nan
+
+# Function to generate sequence for 5PRIME_TD
+def generate_5prime_td_seq(row, reference_fasta):
+    # Fetch the sequence for 5PRIME_TD_SEQ if there's a value in 5PRIME_NB_TD
+    if pd.notna(row['5PRIME_NB_TD']):
+        try:
+            with pysam.FastaFile(reference_fasta) as fasta_file:
+                transduction = fasta_file.fetch(row['SRC_ref'], row['TD_beg'], row['TD_end'])
+                return transduction
+        except (KeyError, ValueError):
+            return np.nan
+    return np.nan
+
+# Function to generate sequence for orphan TD
+def generate_orphan_seq(row, reference_fasta):
+    # Fetch the sequence for orphan TD if there's a value in ORPHAN_TD_COORD
+    if pd.notna(row['ORPHAN_TD_COORD']):
+        try:
+            with pysam.FastaFile(reference_fasta) as fasta_file:
+                transduction = fasta_file.fetch(row['SRC_ref'], row['TD_beg'], row['TD_end'])
+                return transduction
+        except (KeyError, ValueError):
+            return np.nan
+    return np.nan
+
+# Function to generate POLYA_LEN column
+def generate_polya_len(row):
+    # Remove the decimal by converting the value to an integer before adding to the string
+    poly_a_len_1 = str(int(row['PolyA_Length_1'])) if pd.notna(row['PolyA_Length_1']) else ''
+    poly_a_len_2 = str(int(row['PolyA_Length_2'])) if pd.notna(row['PolyA_Length_2']) else ''
+    
+    if poly_a_len_1 and poly_a_len_2:
+        return poly_a_len_1 + ',' + poly_a_len_2
+    elif poly_a_len_1:
+        return poly_a_len_1
+    else:
+        return np.nan  # Return NaN if both are missing
+
+# Function to generate POLYA_SEQ column
+def generate_polya_seq(row):
+    strand = row['STRAND'] if pd.notna(row['STRAND']) else '+'
+    
+    # Determine the PolyA sequences
+    seq_1 = 'A' * int(row['PolyA_Length_1']) if pd.notna(row['PolyA_Length_1']) else ''
+    seq_2 = 'A' * int(row['PolyA_Length_2']) if pd.notna(row['PolyA_Length_2']) else ''
+    
+    if strand == '-':
+        seq_1 = seq_1.replace('A', 'T') if seq_1 else ''
+        seq_2 = seq_2.replace('A', 'T') if seq_2 else ''
+    
+    # Join the sequences with a comma if both exist
+    if seq_1 and seq_2:
+        return seq_1 + ',' + seq_2
+    elif seq_1:
+        return seq_1
+    elif seq_2:
+        return seq_2
+    return np.nan  # Return NaN if no sequences are available
+
+def process_vntr_motifs(df):
+    # Iterate over each element in the 'Selected_VNTR_Motifs' column
+    for i in range(len(df)):
+        #motif = df.at[i, 'Selected_VNTR_Motifs']
+        motif = df.iloc[i]['Selected_VNTR_Motifs']
+        if motif == '0':
+            df.at[i, 'Selected_VNTR_Motifs'] = np.nan  # Replace '0' with NaN
+        elif isinstance(motif, str):
+            # Remove '[' and ']' from the string
+            df.at[i, 'Selected_VNTR_Motifs'] = motif.replace("[", "").replace("'[", "").replace("]", "").replace("]'", "").strip()
+    
+    return df
+
+# Main function
+def df_VCF(df, reference_fasta):
+    # Create a copy of the DataFrame
+    df_copy = df.copy()
+    df_copy = process_vntr_motifs(df_copy)
+    df_copy['Selected_VNTR_Motifs'] = df_copy['Selected_VNTR_Motifs'].str.replace("'", "")
+    # Rename columns based on your requirements
+    df_copy = df_copy.rename(columns={
+        'Length': 'INS_LEN',
+        'VNTR_Num_Motifs': 'NB_MOTIFS',
+        'SVA_Hexamer': 'HEXAMER_LEN',
+        'TSD_Length': 'TSD_LEN',
+        'TD_5': '5PRIME_TD_LEN',
+        'TD_3': '3PRIME_TD_LEN',
+        'Strand': 'STRAND',
+        'TD_orphan_Length': 'ORPHAN_TD_LEN',
+        'Selected_VNTR_Motifs': 'MOTIFS'
+    })
+
+    # Convert columns to integers to remove decimals (i.e., .0)
+    df_copy['NB_MOTIFS'] = df_copy['NB_MOTIFS'].apply(lambda x: int(x) if pd.notna(x) else np.nan).astype('Int64')  # Use 'Int64' to keep NaNs
+    df_copy['HEXAMER_LEN'] = df_copy['HEXAMER_LEN'].apply(lambda x: int(x) if pd.notna(x) else np.nan).astype('Int64')  # Use 'Int64' to keep NaNs
+    df_copy['TSD_LEN'] = df_copy['TSD_LEN'].apply(lambda x: int(x) if pd.notna(x) else np.nan).astype('Int64')  # Use 'Int64' to keep NaNs
+    df_copy['5PRIME_TD_LEN'] = df_copy['5PRIME_TD_LEN'].apply(lambda x: int(x) if pd.notna(x) else np.nan).astype('Int64')  # Use 'Int64' to keep NaNs
+    df_copy['3PRIME_TD_LEN'] = df_copy['3PRIME_TD_LEN'].apply(lambda x: int(x) if pd.notna(x) else np.nan).astype('Int64')  # Use 'Int64' to keep NaNs
+    
+    # Add the 'ID' column with the format SV1, SV2, SV3...
+    df_copy['ID'] = ['INS_' + str(i + 1) for i in range(len(df_copy))]
+
+    # Apply the processing function to the 'name' column and split it into three new columns
+    df_copy[['ITYPE_N', 'CONFORMATION', 'FAM_N']] = df_copy['name'].apply(process_name)
+    
+    # For rows where there is no 'CONFORMATION' (e.g., VNTR), set 'CONFORMATION' to NaN
+    df_copy['CONFORMATION'] = df_copy['CONFORMATION'].replace('', np.nan)
+
+    # Remove the 'name' column at the end
+    df_copy = df_copy.drop(columns=['name'])
+    
+    # Apply the hexamer sequence generation logic
+    df_copy['HEXAMER_SEQ'] = df_copy.apply(generate_hexamer_seq, axis=1)
+    
+    # Apply the TSD sequence generation logic
+    df_copy['TSD_SEQ'] = df_copy.apply(lambda row: generate_tsd_seq(row, reference_fasta), axis=1)
+    
+    # Create the 3PRIME_NB_TD and 5PRIME_NB_TD columns based on the conditions
+    df_copy['3PRIME_NB_TD'] = df_copy['3PRIME_TD_LEN'].apply(lambda x: 1 if pd.notna(x) else np.nan)
+    df_copy['5PRIME_NB_TD'] = df_copy['5PRIME_TD_LEN'].apply(lambda x: 1 if pd.notna(x) else np.nan)
+    
+    # Create the 3PRIME_TD_COORD, 5PRIME_TD_COORD and ORPHAN_TD_COORD columns based on the conditions
+    df_copy['3PRIME_TD_COORD'] = df_copy['SRC_identifier'].where(df_copy['3PRIME_NB_TD'].notna(), np.nan)
+    df_copy['5PRIME_TD_COORD'] = df_copy['SRC_identifier'].where(df_copy['5PRIME_NB_TD'].notna(), np.nan)
+    df_copy['ORPHAN_TD_COORD'] = df_copy['SRC_identifier'].where(df_copy['ITYPE_N'] == 'orphan')
+
+    # Remove the SRC_identifier column
+    df_copy = df_copy.drop(columns=['SRC_identifier'])
+
+    # Apply the transduction sequence generation logic for 3PRIME_TD_SEQ and 5PRIME_TD_SEQ
+    df_copy['3PRIME_TD_SEQ'] = df_copy.apply(lambda row: generate_3prime_td_seq(row, reference_fasta), axis=1)
+    df_copy['5PRIME_TD_SEQ'] = df_copy.apply(lambda row: generate_5prime_td_seq(row, reference_fasta), axis=1)
+    df_copy['ORPHAN_TD_SEQ'] = df_copy.apply(lambda row: generate_orphan_seq(row, reference_fasta), axis=1)  
+
+    # Convert the 3PRIME_TD_SEQ and 5PRIME_TD_SEQ columns to uppercase
+    df_copy['3PRIME_TD_SEQ'] = df_copy['3PRIME_TD_SEQ'].apply(lambda x: x.upper() if pd.notna(x) else np.nan)
+    df_copy['5PRIME_TD_SEQ'] = df_copy['5PRIME_TD_SEQ'].apply(lambda x: x.upper() if pd.notna(x) else np.nan)
+    df_copy['ORPHAN_TD_SEQ'] = df_copy['ORPHAN_TD_SEQ'].apply(lambda x: x.upper() if pd.notna(x) else np.nan)
+
+    # Apply the POLYA_LEN generation logic
+    df_copy['POLYA_LEN'] = df_copy.apply(generate_polya_len, axis=1)
+
+    # Apply the POLYA_SEQ generation logic
+    df_copy['POLYA_SEQ'] = df_copy.apply(generate_polya_seq, axis=1)
+
+    return df_copy
+
+def create_vcf_file(df, reference_fasta, chromosome_length):
+    # Create the chr_length dictionary using formats
+    chr_length = formats.chrom_lengths_index(chromosome_length)
+
+    # Get date of creation
+    current_date = datetime.datetime.now().strftime("%Y%m%d")
+
+    # Open a VCF file to write to
+    with open('VCF_Insertions_SVModeller.vcf', 'w') as vcf_file:
+        # Write VCF header
+        vcf_file.write("##fileformat=VCFv4.2\n")
+        vcf_file.write(f"##fileDate={current_date}\n")
+        vcf_file.write("##source=SVModeller\n")
+        vcf_file.write("##reference=None\n")
+
+        # Adding contig length
+        for contig in df['#ref'].unique():
+            # Get the length from chr_length dictionary
+            if contig in chr_length:
+                contig_length = chr_length[contig]
+                vcf_file.write(f"##contig=<ID={contig},assembly=None,length={contig_length},species=None>\n")
+            else:
+                # Handle the case where the contig is not found in chr_length
+                vcf_file.write(f"##contig=<ID={contig},assembly=None,length=None,species=None>\n")
+
+        vcf_file.write("##INFO=<ID=INS_LEN,Type=float,Description=Total length of the insertion>\n")
+        vcf_file.write("##INFO=<ID=TSD_LEN,Type=float,Description=Length of the TSD>\n")
+        vcf_file.write("##INFO=<ID=5PRIME_TD_LEN,Type=float,Description=Length of the 5' TD>\n")
+        vcf_file.write("##INFO=<ID=3PRIME_TD_LEN,Type=float,Description=Length of the 3' TD>\n")
+        vcf_file.write("##INFO=<ID=NB_MOTIFS,Type=float,Description=Number of VNTR motifs>\n")
+        vcf_file.write("##INFO=<ID=MOTIFS,Type=str,Description=VNTR selected motifs>\n")
+        vcf_file.write("##INFO=<ID=HEXAMER_LEN,Type=float,Description=Length of the SVA hexamer>\n")
+        vcf_file.write("##INFO=<ID=SVA_VNTR_Length,Type=float,Description=Length of the SVA VNTR>\n")
+        vcf_file.write("##INFO=<ID=ITYPE_N,Type=float,Description=Type of insertion>\n")
+        vcf_file.write("##INFO=<ID=CONFORMATION,Type=float,Description=Conformation of the insertion>\n")
+        vcf_file.write("##INFO=<ID=FAM_N,Type=float,Description=Family of the insertion>\n")
+        vcf_file.write("##INFO=<ID=HEXAMER_SEQ,Type=float,Description=Sequence of SVA hexamer>\n")
+        vcf_file.write("##INFO=<ID=TSD_SEQ,Type=float,Description=Length of the poly A tail (or first poly A in case of more than 1)>\n")
+        vcf_file.write("##INFO=<ID=3PRIME_NB_TD,Type=float,Description=Number of 3' TD>\n")
+        vcf_file.write("##INFO=<ID=5PRIME_NB_TD,Type=float,Description=Number of 5' TD>\n")
+        vcf_file.write("##INFO=<ID=3PRIME_TD_COORD,Type=float,Description=Coordinates of 3' TD>\n")
+        vcf_file.write("##INFO=<ID=5PRIME_TD_COORD,Type=float,Description=Coordinates of 5' TD>\n")
+        vcf_file.write("##INFO=<ID=3PRIME_TD_SEQ,Type=float,Description=Sequence of 3' TD>\n")
+        vcf_file.write("##INFO=<ID=5PRIME_TD_SEQ,Type=float,Description=Sequence of 5' TD>\n")
+        vcf_file.write("##INFO=<ID=POLYA_LEN,Type=float,Description=Length of the poly A tail>\n")
+        vcf_file.write("##INFO=<ID=POLYA_SEQ,Type=float,Description=Sequence of the poly A tail>\n")
+        vcf_file.write("##INFO=<ID=FOR,Type=float,Description=Length of conformation forward part of the event>\n")
+        vcf_file.write("##INFO=<ID=TRUN,Type=float,Description=Length of the conformation truncated part of the event>\n")
+        vcf_file.write("##INFO=<ID=REV,Type=float,Description=Length of the conformation reverse part of the event>\n")
+        vcf_file.write("##INFO=<ID=DEL,Type=float,Description=Length of the conformation deleted part of the event>\n")
+        vcf_file.write("##INFO=<ID=DUP,Type=float,Description=Length of the conformation duplicated part of the event>\n")
+        vcf_file.write("##INFO=<ID=STRAND,Type=str,Description=Strand (+ or -) of the event>\n")
+        vcf_file.write("##INFO=<ID=ORPHAN_TD_LEN,Type=float,Description=Length of the orphan transduction>\n")
+        vcf_file.write("##INFO=<ID=ORPHAN_TD_COORD,Type=str,Description=Coordinates of orphan transduction>\n")
+        vcf_file.write("##INFO=<ID=ORPHAN_TD_SEQ,Type=str,Description=Sequence of orphan transduction>\n")
+
+        vcf_file.write("#CHROM\tPOS\tID\tREF\tALT\tQUAL\tFILTER\tINFO\n")
+
+        # Loop through each row in the DataFrame
+        for _, row in df.iterrows():
+            chrom = row['#ref']
+            pos = row['beg']
+            event_id = row['ID']
+            ref = '.' 
+            alt = row['Sequence_Insertion']
+            qual = '.'  
+            filter = '.'
+
+            # Convert 'beg' to an integer (position at which to fetch the reference sequence)
+            beg = int(row['beg'])
+
+            # Fetch the sequence using pysam from the reference genome at the position 'beg'
+            with pysam.FastaFile(reference_fasta) as fasta_file:
+                ref = fasta_file.fetch(chrom, beg - 1, beg)  # pysam is 0-based, so we subtract 1 for 0-based indexing
+            ref = ref.upper()
+
+            # Create the INFO field dynamically, excluding NaN values
+            info_fields = []
+            for col in ['ITYPE_N', 'INS_LEN', 'STRAND', 'FAM_N', 'CONFORMATION', 'FOR', 'TRUN', 'REV', 'DEL', 'DUP', 'TSD_LEN', 'TSD_SEQ', '3PRIME_NB_TD', '5PRIME_NB_TD', '5PRIME_TD_LEN', '3PRIME_TD_LEN', '5PRIME_TD_COORD', '3PRIME_TD_COORD','3PRIME_TD_SEQ', '5PRIME_TD_SEQ', 'NB_MOTIFS', 
+                        'MOTIFS','HEXAMER_LEN', 'SVA_VNTR_Length', 'HEXAMER_SEQ', 'ORPHAN_TD_LEN','ORPHAN_TD_COORD', 'ORPHAN_TD_SEQ','POLYA_LEN', 'POLYA_SEQ']:
+                value = row[col]
+                if pd.notna(value):  # Check if the value is not NaN
+                    info_fields.append(f"{col}={value}")
+
+            # Join the info fields into a single string separated by semicolons
+            info = ";".join(info_fields)
+
+            # Write the VCF entry for each row
+            vcf_file.write(f"{chrom}\t{pos}\t{event_id}\t{ref}\t{alt}\t{qual}\t{filter}\t{info}\n")
+
+    print("VCF file created successfully.")
+
+def main(consensus_path, probabilities_numbers_path, insertion_features_path, genome_wide_path, source_L1_path, source_SVA_path, motifs_path, SVA_VNTR_path, reference_fasta_path, chromosome_length_path, num_events, apply_VCF):
     print(f'File with consensus sequences: {consensus_path}')
     print(f'File with probabilities or number of events: {probabilities_numbers_path}')
     print(f'File with insertions features: {insertion_features_path}')
@@ -1734,25 +2045,35 @@ def main(consensus_path,probabilities_numbers_path,insertion_features_path,genom
     # Open SVAs VNTR motifs file
     SVA_VNTR_motifs = read_file_and_store_lines(SVA_VNTR_path)
     # Get number or probabilities of events
-    df_insertions1 = probabilities_total_number(probabilities_numbers_path,num_events)
-    # Process insetion features and generate dict with random numbers based on distributions for each feature of every event
-    dict_random = process_insertion_features_random_numbers(insertion_features_path,num_events,consensus_dict)
+    df_insertions1 = probabilities_total_number(probabilities_numbers_path, num_events)
+    # Process insertion features and generate dict with random numbers based on distributions for each feature of every event
+    dict_random = process_insertion_features_random_numbers(insertion_features_path, num_events, consensus_dict)
     # Add chromosome and start position
-    df_insertions2 = add_beg_end_columns(df_insertions1,genome_wide_path)
+    df_insertions2 = add_beg_end_columns(df_insertions1, genome_wide_path)
     # Add the features of each event
-    df_insertions3 = add_elements_columns(dict_random,df_insertions2)
+    df_insertions3 = add_elements_columns(dict_random, df_insertions2)
     # Add SVA events additional details
     df_insertions4 = add_SVA_info(df_insertions3, consensus_dict)
     # Update df
-    df_insertions5 = update_dataframe(df_insertions4,consensus_dict)
-    # Add souce gene information for transduction events
-    df_insertions6 = add_source_gene_info(df_insertions5,source_L1_path,source_SVA_path)
-    # Generate the insertion sequence
-    df_insertions6['Sequence_Insertion'] = df_insertions6.apply(lambda row: generate_insertion_seq(row, motifs_path, reference_fasta_path, consensus_dict, SVA_VNTR_motifs), axis=1)
+    df_insertions5 = update_dataframe(df_insertions4, consensus_dict)
+    # Add source gene information for transduction events
+    df_insertions6 = add_source_gene_info(df_insertions5, source_L1_path, source_SVA_path)
+    # Generate the insertion sequence and selected VNTR motifs
+    df_insertions6['Sequence_Insertion'], df_insertions6['Selected_VNTR_Motifs'] = zip(*df_insertions6.apply(lambda row: generate_insertion_seq(row, motifs_path, reference_fasta_path, consensus_dict, SVA_VNTR_motifs), axis=1))
+    # Update VNTR motifs
+    df_insertions6 = process_vntr_motifs(df_insertions6)
     # Update the insertion sequence
     df_insertions6 = update_sequences(df_insertions6)
     # Save the output
     df_insertions6.to_csv('Insertions_table.tsv', sep='\t', index=False)
+    
+    # If the VCF argument is provided, create a VCF file
+    if apply_VCF:
+        df_insertions7 = pd.read_csv('Insertions_table.tsv', sep='\t')
+        # Process the df to transform it to VCF format
+        df_VCF_format = df_VCF(df_insertions7, reference_fasta_path)
+        # Create the VCF
+        create_vcf_file(df_VCF_format, reference_fasta_path, chromosome_length_path)
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description='Generate insertion sequences returned in tsv file.')
@@ -1762,9 +2083,14 @@ if __name__ == "__main__":
     parser.add_argument('genome_wide_path', type=str, help='Path to the TSV file containing genome-wide distribution of events.')
     parser.add_argument('source_L1_path', type=str, help='Path to the TSV file containing loci for LINE-1 transductions.')
     parser.add_argument('source_SVA_path', type=str, help='Path to the TSV file containing loci for SVA transductions.')
-    parser.add_argument('motifs_path', type=str, help='Path to the txt file containing VNTR motifs and their proportion.')
-    parser.add_argument('SVA_VNTR_path', type=str, help='Path to the txt file containing SVA VNTR motifs.')
+    parser.add_argument('motifs_path', type=str, help='Path to the TSV file containing loci for SVA transductions.')
+    parser.add_argument('SVA_VNTR_path', type=str, help='Path to the TSV file containing loci for SVA transductions.')
     parser.add_argument('reference_fasta_path', type=str, help='Path to file with reference genome.')
+    parser.add_argument('chromosome_length_path', type=str, help='Path to the chromosome length file.')
     parser.add_argument('--num_events', type=int, default=100, help='Number of events to sample (optional, just in case of providing probabilities).')
+    parser.add_argument('--VCF', action='store_true', help='If specified, creates a Variant Calling File (VCF)')
+    
     args = parser.parse_args()
-    main(args.consensus_path, args.probabilities_numbers_path, args.insertion_features_path, args.genome_wide_path, args.source_L1_path, args.source_SVA_path, args.motifs_path, args.SVA_VNTR_path, args.reference_fasta_path, args.num_events)
+
+    # Call main with the correct apply_VCF variable name
+    main(args.consensus_path, args.probabilities_numbers_path, args.insertion_features_path, args.genome_wide_path, args.source_L1_path, args.source_SVA_path, args.motifs_path, args.SVA_VNTR_path, args.reference_fasta_path, args.chromosome_length_path, args.num_events, apply_VCF=args.VCF)
