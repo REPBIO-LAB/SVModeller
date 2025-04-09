@@ -2,6 +2,11 @@
 
 # Obtain and process data from Variant Calling File (VCF)
 
+#Input:
+# - VCF with insertion data
+# - Chromosomes length (chr_length.txt)
+# OPTIONAL: Window size for genome segmentation, by default 1 Mega base (integer number)
+
 # Output: 
 # - Insertion features (.tsv)
 # - Genome-wide distribution (.tsv)
