@@ -35,7 +35,7 @@ This module aims to process the insertion data from the VCF obtaining different 
 Second module objective is to generate from determine distributions the final sequences that will be inserted in a genome. It takes the genome-wide and insertion features distributions, even from module 1 or user-defined ones with the same structure as the ones derived from module 1. From these distributions samples different values to build the new events and returns their generated sequence.
 
 **Input:**
-- Genome-Wide Distribution _(Genome_Wide_Distribution.tsv.tsv)_
+- Genome-Wide Distribution _(Genome_Wide_Distribution.tsv)_
 - Insertion Features _(Insertion_Features.tsv)_
 - Event Probabilities or Number of each event to simulate _(Probabilities.tsv)_
 - OPTIONAL: Just in case of providing probabilities, total number of events to simulate _(integer number)_
@@ -48,6 +48,7 @@ Second module objective is to generate from determine distributions the final se
 
 **Output:**
 - New insertion events sequences with their corresponding features _(Insertions_table.tsv)_
+- OPTIONAL: Variant Calling File (VCF) with insertion data
 
 **Mandatory input columns**
 - Genome-Wide Distribution _(Genome_Wide_Distribution.tsv.tsv)_: 'window', 'beg', 'end', each event conformation as a column (i.e. 'Alu__FOR+POLYA', 'VNTR', 'INV_DUP')
@@ -61,10 +62,12 @@ Third module generates deletions events. It takes the data from VCF and based on
 - VCF with deletion data _(VCF_Deletions.vcf)_
 - Total number of events to simulate _(integer number)_
 - Chromosomes length _(chr_length.txt)_
+- OPTIONAL: Reference genome _(chm13v2.0.fa)_ just if VCF file is desired
 - OPTIONAL: Window size for genome segmentation, by default 1 Mega base _(integer number)_
 
 **Output:**
 - Deletion regions _(Deletions_table.tsv)_
+- OPTIONAL: Variant Calling File (VCF) with insertion data
 
 ### Module 4
 Fourth module results in a modified genome. It takes data frames of insertion and deletion data (even from modules 2 and 3 or user-defined) and modifies a reference genome with the determine information. The result is the reference genome with the specified changes.
