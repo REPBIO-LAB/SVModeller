@@ -7,15 +7,19 @@
 # - Chromosome length file
 #- Number of events
 # - Size of genomic bins (default: 1000000)
+# - OPTIONAL: Reference genome (chm13v2.0.fa) just if VCF file is desired
 
 # OTPUT:
 # - Deletion events table (.tsv)
+# OPTIONAL: Variant Calling File (VCF) with deletion data
 
 import argparse
 import formats
 import gRanges
 import numpy as np
 import pandas as pd
+import pysam
+import datetime
 
 def TD_filter(df):
     ''' 
@@ -335,7 +339,102 @@ def generate_deletion_events(probabilities_table, num_events, deletions_table, g
 
     return df_copy
 
-def main(vcf_path, path_chromosome_length, num_events, bin_size,):
+# Function to process the df of deletion events and create the VCF
+def create_VCF(df, reference_fasta, chromosome_length):
+    # Rename the column 'Total_Length' to 'DEL_LEN'
+    df = df.rename(columns={'Total_Length': 'DEL_LEN', 'Event': 'DTYPE_N'})
+    
+    # Create a new empty column 'Sequence'
+    df['Sequence'] = None
+    
+    # Create a new column 'Seq_end' which is the sum of 'beg' + 'DEL_LEN'
+    df['beg'] = pd.to_numeric(df['beg'], errors='coerce')
+    df['DEL_LEN'] = pd.to_numeric(df['DEL_LEN'], errors='coerce')
+
+    df['Seq_end'] = df['beg'] + df['DEL_LEN']
+    
+    # Now, for each row, fetch the sequence using pysam and write to 'Sequence' column
+    for index, row in df.iterrows():
+        # Ensure 'beg' and 'Seq_end' are valid integers
+        beg = int(row['beg'])
+        end = int(row['Seq_end'])
+        
+        # Fetch the sequence using pysam
+        with pysam.FastaFile(reference_fasta) as fasta_file:
+            TSD = fasta_file.fetch(row['#ref'], beg, end)
+        
+        # Store the result in the 'Sequence' column
+        df.at[index, 'Sequence'] = TSD
+    
+    # Convert the 'Sequence' column to uppercase
+    df['Sequence'] = df['Sequence'].str.upper()
+
+    df['ID'] = ['DEL_' + str(i + 1) for i in range(len(df))]
+
+    # Create the chr_length dictionary using formats
+    chr_length = formats.chrom_lengths_index(chromosome_length)
+
+    # Get date of creation
+    current_date = datetime.datetime.now().strftime("%Y%m%d")
+
+    # Open a VCF file to write to
+    with open('VCF_Deletions_SVModeller.vcf', 'w') as vcf_file:
+        # Write VCF header
+        vcf_file.write("##fileformat=VCFv4.2\n")
+        vcf_file.write(f"##fileDate={current_date}\n")
+        vcf_file.write("##source=SVModeller\n")
+        vcf_file.write("##reference=None\n")
+
+        # Adding contig length
+        for contig in df['#ref'].unique():
+            # Get the length from chr_length dictionary
+            if contig in chr_length:
+                contig_length = chr_length[contig]
+                vcf_file.write(f"##contig=<ID={contig},assembly=None,length={contig_length},species=None>\n")
+            else:
+                # Handle the case where the contig is not found in chr_length
+                vcf_file.write(f"##contig=<ID={contig},assembly=None,length=None,species=None>\n")
+
+        vcf_file.write("##INFO=<ID=DEL_LEN,Type=float,Description=Total length of the deletion>\n")
+        vcf_file.write("##INFO=<ID=DEL_N,Type=float,Description=Type of deletion>\n")
+        vcf_file.write("#CHROM\tPOS\tID\tREF\tALT\tQUAL\tFILTER\tINFO\n")
+
+        # Loop through each row in the DataFrame
+        for _, row in df.iterrows():
+            chrom = row['#ref']
+            pos = row['beg']
+            event_id = row['ID']
+            ref = row['Sequence'] 
+            alt = '.'
+            qual = '.'  
+            filter = '.'
+
+            # Convert 'beg' to an integer (position at which to fetch the reference sequence)
+            beg = int(row['beg'])
+
+            # Fetch the sequence using pysam from the reference genome at the position 'beg'
+            with pysam.FastaFile(reference_fasta) as fasta_file:
+                alt = fasta_file.fetch(chrom, beg - 1, beg)  # pysam is 0-based, so we subtract 1 for 0-based indexing
+            alt = alt.upper()
+
+            # Create the INFO field dynamically, excluding NaN values
+            info_fields = []
+            for col in ['DTYPE_N', 'DEL_LEN']:
+                value = row[col]
+                if pd.notna(value):  # Check if the value is not NaN
+                    info_fields.append(f"{col}={value}")
+
+            # Join the info fields into a single string separated by semicolons
+            info = ";".join(info_fields)
+
+            # Write the VCF entry for each row
+            vcf_file.write(f"{chrom}\t{pos}\t{event_id}\t{ref}\t{alt}\t{qual}\t{filter}\t{info}\n")
+
+    print("VCF file created successfully.")
+
+    return df
+
+def main(vcf_path, path_chromosome_length, num_events, bin_size,apply_VCF, reference_fasta_path):
     # Print the paths of the input files
     print(f'VCF file with deletion data: {vcf_path}')
     print(f'Chromosome length file: {path_chromosome_length}')
@@ -359,12 +458,24 @@ def main(vcf_path, path_chromosome_length, num_events, bin_size,):
     deletion_events = generate_deletion_events(probabilities,num_events,processed_table,genome_wide_distribution)
     deletion_events.to_csv('Deletions_table.tsv', sep='\t', index=False)
 
+    # If the VCF argument is provided, create a VCF file
+    if apply_VCF:
+        create_VCF(deletion_events,reference_fasta_path,path_chromosome_length)
+
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description='Process deletions from VCF to BED format.')
     parser.add_argument('vcf_path', type=str, help='Path to the VCF file containing deletion data.')
     parser.add_argument('path_chromosome_length', type=str, help='Path to the chromosome length file.')
     parser.add_argument('num_events', type=int, help='Number of events to sample (mandatory).')
     parser.add_argument('--bin_size', type=int, default=1000000, help='Size of genomic bins (default: 1000000).')
+    parser.add_argument('--VCF', action='store_true', help='If specified, creates a Variant Calling File (VCF)')
+    parser.add_argument('--reference_fasta_path', type=str, help='Path to file with reference genome.')
 
     args = parser.parse_args()
-    main(args.vcf_path, args.path_chromosome_length, args.num_events, args.bin_size,)
+    # Check if --VCF is provided, and make sure all required arguments are there
+    if args.VCF:
+        if not args.reference_fasta_path:
+            parser.print_help()
+            raise ValueError("When --VCF is specified --reference_fasta_path is required.")
+
+    main(args.vcf_path, args.path_chromosome_length, args.num_events, args.bin_size, args.VCF, args.reference_fasta_path)
