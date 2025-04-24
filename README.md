@@ -112,6 +112,11 @@ Available data to run the modules for versions 0.1 and 0.2 available at:
 - Version 0.1:
 [Link to Zenodo](https://zenodo.org/records/14629433?token=eyJhbGciOiJIUzUxMiJ9.eyJpZCI6IjkxODlmMGVmLTU4ZmMtNGQ5NC04MmRmLWNiNTc3NWRlZGEzYSIsImRhdGEiOnt9LCJyYW5kb20iOiIzMTQyNDg4MjcyYTI2ZDRmZTI3MTcwOGJkNTEzY2RiNyJ9.0ikZdwVU-K6ffwjmEb3HudqHvyz52Umt0XZyO91t_1ffEeP3VTV9iKaRhTWBf8ABoF03R24WMKzMu23yDjpX3Q)
 
+
+## Additional scripts
+- Filter_VCF_information.py: to remove from VCF files the information field, keeping just the event length.
+
+
 ## Developers
 SVModeller has been developed by Ismael Vera Muñoz at the Repetitive DNA Biology (REPBIO) Lab at the Centre for Genomic Regulation (CRG) (2024-2025).
 
