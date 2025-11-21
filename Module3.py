@@ -1,4 +1,4 @@
-# SVMoldeler - Module 3
+# SVMoldeller - Module 3
 
 # Process Deletions
 
@@ -13,6 +13,12 @@
 # - Deletion events table (.tsv)
 # OPTIONAL: Variant Calling File (VCF) with deletion data
 
+# Developers
+# SVModeller has been developed by Ismael Vera-Munoz (orcid.org/0009-0009-2860-378X) at the Repetitive DNA Biology (REPBIO) Lab at the Centre for Genomic Regulation (CRG) (Barcelona 2024-2025)
+
+# License
+# SVModeller is distributed under the AGPL-3.0.
+
 import argparse
 import formats
 import gRanges
@@ -20,6 +26,7 @@ import numpy as np
 import pandas as pd
 import pysam
 import datetime
+import warnings
 
 def TD_filter(df):
     ''' 
@@ -333,16 +340,12 @@ def generate_deletion_events(probabilities_table, num_events, deletions_table, g
     # Update order and name of columns
     df3 = df3[new_order]
     
-    # Copy the DataFrame and rename 'Length' column to 'Total_Length'
-    df_copy = df3.copy()
-    df_copy.rename(columns={'Length': 'Total_Length'}, inplace=True)
-
-    return df_copy
+    return df3
 
 # Function to process the df of deletion events and create the VCF
 def create_VCF(df, reference_fasta, chromosome_length):
-    # Rename the column 'Total_Length' to 'DEL_LEN'
-    df = df.rename(columns={'Total_Length': 'DEL_LEN', 'Event': 'DTYPE_N'})
+    # Rename the column 'Length' to 'DEL_LEN'
+    df = df.rename(columns={'Length': 'DEL_LEN', 'name': 'DTYPE_N'})
     
     # Create a new empty column 'Sequence'
     df['Sequence'] = None
@@ -434,6 +437,9 @@ def create_VCF(df, reference_fasta, chromosome_length):
 
     return df
 
+# Remove FutureWarnings
+warnings.simplefilter(action='ignore', category=FutureWarning)
+
 def main(vcf_path, path_chromosome_length, num_events, bin_size,apply_VCF, reference_fasta_path):
     # Print the paths of the input files
     print(f'VCF file with deletion data: {vcf_path}')
@@ -456,6 +462,7 @@ def main(vcf_path, path_chromosome_length, num_events, bin_size,apply_VCF, refer
     
     # Generate the deletion events & save the output
     deletion_events = generate_deletion_events(probabilities,num_events,processed_table,genome_wide_distribution)
+    deletion_events = deletion_events.rename(columns={'Event': 'name'})
     deletion_events.to_csv('Deletions_table.tsv', sep='\t', index=False)
 
     # If the VCF argument is provided, create a VCF file
@@ -464,12 +471,12 @@ def main(vcf_path, path_chromosome_length, num_events, bin_size,apply_VCF, refer
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description='Process deletions from VCF to BED format.')
-    parser.add_argument('vcf_path', type=str, help='Path to the VCF file containing deletion data.')
-    parser.add_argument('path_chromosome_length', type=str, help='Path to the chromosome length file.')
-    parser.add_argument('num_events', type=int, help='Number of events to sample (mandatory).')
-    parser.add_argument('--bin_size', type=int, default=1000000, help='Size of genomic bins (default: 1000000).')
-    parser.add_argument('--VCF', action='store_true', help='If specified, creates a Variant Calling File (VCF)')
-    parser.add_argument('--reference_fasta_path', type=str, help='Path to file with reference genome.')
+    parser.add_argument('--vcf_path', type=str, required=True, help='Path to the VCF file containing deletion data.')
+    parser.add_argument('--path_chromosome_length', type=str, required=True, help='Path to the chromosome length file.')
+    parser.add_argument('--num_events', type=int, required=True, help='Number of events to sample (mandatory).')
+    parser.add_argument('--bin_size', type=int, default=1000000, required=False, help='Size of genomic bins (default: 1000000).')
+    parser.add_argument('--VCF', action='store_true', required=False, help='If specified, creates a Variant Calling File (VCF)')
+    parser.add_argument('--reference_fasta_path', type=str, required=False, help='Path to file with reference genome.')
 
     args = parser.parse_args()
     # Check if --VCF is provided, and make sure all required arguments are there
