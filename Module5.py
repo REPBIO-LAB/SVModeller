@@ -3,24 +3,31 @@
 # Generate BAM file with reads at different coverage and allele frequency levels
 
 # Input:
-# Reference genome (.fasta)
-# Modified reference genome (.fasta)
-# Method to generate reads (choices='quality_score', 'error_model', 'training')
-# Method file (string, '.model' or '.fastq' i.e. ERRHMM-ONT-HQ.model)
-# Allele frequency (decimal number between 0-1. i.e. 0.25)
-# Coverage (integer number: 30 for 30x)
-# Output directory (file name)
-# Technology of generated reads (ONT, PB, HiFi)
+# - Reference genome (.fasta)
+# - Modified reference genome (.fasta)
+# - Method to generate reads (choices='quality_score', 'error_model', 'training')
+# - Method file (string, '.model' or '.fastq' i.e. ERRHMM-ONT-HQ.model)
+# - Allele frequency (decimal number between 0-1. i.e. 0.25)
+# - Coverage (integer number: 30 for 30x)
+# - Output directory (file name)
+# - Technology of generated reads (ONT, PB, HiFi)
 
 # Output:
-# Alignment (combined_final_alignment.bam)
-# Modified genome reads (.fastq)
-# Reference genome reads (.fastq)
+# - Alignment (combined_final_alignment.bam)
+# - Modified genome reads (.fastq)
+# - Reference genome reads (.fastq)
+
+# Developers
+# SVModeller has been developed by Ismael Vera-Munoz (orcid.org/0009-0009-2860-378X) at the Repetitive DNA Biology (REPBIO) Lab at the Centre for Genomic Regulation (CRG) (Barcelona 2024-2025)
+
+# License
+# SVModeller is distributed under the AGPL-3.0.
 
 import subprocess
 import os
 import argparse
 import glob
+import warnings
 
 # Function to run PBSIM to generate synthetic reads for reference and modified genomes
 def run_pbsim(genome, method_file, method, depth, output_dir, output_reference):
@@ -82,6 +89,9 @@ def merge_bams(bam_files, output_bam, threads):
     subprocess.run(command, shell=True, check=True)
     return output_bam
 
+# Remove FutureWarnings
+warnings.simplefilter(action='ignore', category=FutureWarning)
+
 # Main function
 def main(reference_genome, modified_genome, method_file, method, coverage, allele_frequency, output_dir, technology, threads):
     print(f'Reference genome: {reference_genome}')
@@ -141,15 +151,15 @@ def main(reference_genome, modified_genome, method_file, method, coverage, allel
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description='Generate and align reads from reference and modified genome')
-    parser.add_argument('reference_genome', type=str, help='Path to the reference genome (.FASTA)')
-    parser.add_argument('modified_genome', type=str, help='Path to the modified genome (.FASTA)')
-    parser.add_argument('method_file', type=str, help='Path to the method file (.MODEL or .FASTQ)')
-    parser.add_argument('method', type=str, choices=['quality_score', 'error_model', 'training'], help='Method to use with PBSIM (quality_score,error_model,training)')
-    parser.add_argument('coverage', type=int, help='Coverage (100 for 100x)')
-    parser.add_argument('allele_frequency', type=float, help='Allele frequency (0.25 for 25%)')
-    parser.add_argument('output_dir', type=str, help='Name of the parent output directory where results will be saved')
-    parser.add_argument('technology', type=str, choices=['ONT', 'PB', 'HiFi'], help='Sequencing technology to use (ONT, PB, HiFi)')
-    parser.add_argument('--threads', type=int, default=1, help='Number of threads to use for Minimap2, and Samtools')
+    parser.add_argument('--reference_genome', type=str, required=True, help='Path to the reference genome (.FASTA)')
+    parser.add_argument('--modified_genome', type=str, required=True, help='Path to the modified genome (.FASTA)')
+    parser.add_argument('--method_file', type=str, required=True, help='Path to the method file (.MODEL or .FASTQ)')
+    parser.add_argument('--method', type=str, required=True, choices=['quality_score', 'error_model', 'training'], help='Method to use with PBSIM (quality_score,error_model,training)')
+    parser.add_argument('--coverage', type=int, required=True, help='Coverage (100 for 100x)')
+    parser.add_argument('--allele_frequency', type=float, required=True, help='Allele frequency (0.25 for 25%)')
+    parser.add_argument('--output_dir', type=str, required=True, help='Name of the parent output directory where results will be saved')
+    parser.add_argument('--technology', type=str, required=True, choices=['ONT', 'PB', 'HiFi'], help='Sequencing technology to use (ONT, PB, HiFi)')
+    parser.add_argument('--threads', type=int, default=1, required=False, help='Number of threads to use for Minimap2, and Samtools')
 
     args = parser.parse_args()
     main(args.reference_genome, args.modified_genome, args.method_file, args.method, args.coverage, args.allele_frequency, args.output_dir, args.technology, args.threads)
