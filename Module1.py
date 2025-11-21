@@ -2,7 +2,7 @@
 
 # Obtain and process data from Variant Calling File (VCF)
 
-#Input:
+# Input:
 # - VCF with insertion data
 # - Chromosomes length (chr_length.txt)
 # OPTIONAL: Window size for genome segmentation, by default 1 Mega base (integer number)
@@ -14,11 +14,18 @@
 # - List of VNTR motifs (.txt)
 # - List of SVA VNTR motifs (.txt)
 
+# Developers
+# SVModeller has been developed by Ismael Vera-Munoz (orcid.org/0009-0009-2860-378X) at the Repetitive DNA Biology (REPBIO) Lab at the Centre for Genomic Regulation (CRG) (Barcelona 2024-2025)
+
+# License
+# SVModeller is distributed under the AGPL-3.0.
+
 import formats
 import pandas as pd
 import statistics
 import gRanges
 import argparse
+import warnings
 
 def TD_filter(df):
     ''' 
@@ -159,6 +166,20 @@ def extract_SVA_VNTR_Motifs(df):
     
     return df
 
+def extract_vntr_with_start(df):
+    # Extract the from the VNTRs the start position, complete sequence, number of motifs, and the motifs
+    df_clean = df[['beg', 'Complete_Sequence', 'VNTR_Num_Motifs', 'VNTR_Motifs']].copy()
+    df_clean.rename(columns={'beg': 'Start'}, inplace=True)
+
+    # rRemove any case with NA
+    mask = ~(df_clean.astype(str).apply(lambda x: x.str.strip().str.upper()).eq("NA").any(axis=1))
+    df_clean = df_clean[mask]
+
+    # Save
+    df_clean.to_csv("VNTR_with_start_position.txt", sep='\t', index=False)
+
+    return df_clean
+
 def process_bed_table(result_df):
     # Change the names to the correct ones:
     result_BED_table = result_df.rename(columns={'Type_SV': 'name', 'Chromosome':'#ref', 'Start_position': 'beg', 'End_position':'end', 'Family':'SubType'})
@@ -178,9 +199,12 @@ def process_bed_table(result_df):
     # Delete rows where 'name' is 'COMPLEX_DUP'
     result_BED_table = result_BED_table[result_BED_table['name'] != 'COMPLEX_DUP']
     
+    vntr_df = extract_vntr_with_start(result_BED_table)
+
     # Extract the VNTR motifs from SVAs
     result_BED_table = SVA_VNTR_Motif(result_BED_table)
     result_BED_table = extract_SVA_VNTR_Motifs(result_BED_table)
+    
     
     # Update 'name' for rows with 'solo' or 'partnered' based on 'SubType'
     result_BED_table['name'] = result_BED_table.apply(
@@ -214,7 +238,7 @@ def process_bed_table(result_df):
     # Apply the extraction function to create the new columns
     result_BED_table[['FOR', 'TRUN', 'REV', 'DEL', 'DUP']] = result_BED_table.apply(extract_conformation_data, axis=1)
     
-    return result_BED_table
+    return result_BED_table, vntr_df
 
 def create_dict(df):
     # Create the 'Event' column: Combine the column name and 'Conformation'
@@ -260,50 +284,6 @@ def filter_sd(dict, key_list):
         dict[key] = [value for value in values if value <= 2 * std_dev]  
     return dict 
 
-def extractvntr_motifs(dict_mutations):
-    ''' 
-    Extracts the motifs from the 'VNTR_VNTR_Motifs' key in the dictionary, 
-    splits them into individual motifs, stores them in a list, 
-    and then removes the 'VNTR_VNTR_Motifs' key from the dictionary.
-    It also returns a DataFrame with the unique motifs and their proportions.
-    
-    Input:
-    - dict_mutations (dict): The dictionary containing the VNTR data.
-    
-    Output:
-    - dict_mutations (dict): The modified dictionary without the 'VNTR_VNTR_Motifs' key.
-    - motifs_df (DataFrame): A DataFrame with unique motifs and their proportions.
-    '''
-    
-    # Initialize the list for separated motifs
-    separated_motifs = []
-
-    # Check if 'VNTR_VNTR_Motifs' key exists in the dictionary
-    if 'VNTR__VNTR_Motifs' in dict_mutations:
-        # Get the list of values associated with the 'VNTR_VNTR_Motifs' key
-        motifs = dict_mutations['VNTR__VNTR_Motifs']
-        
-        # Iterate through each motif and split by comma, extending the separated_motifs list
-        for motif in motifs:
-            separated_motifs.extend(motif.split(','))
-
-        # Remove the 'VNTR_VNTR_Motifs' key from the dictionary
-        del dict_mutations['VNTR__VNTR_Motifs']
-
-    # Count occurrences of each motif in separated_motifs
-    motif_counts = pd.Series(separated_motifs).value_counts()
-
-    # Calculate proportions
-    motif_proportions = motif_counts / motif_counts.sum()
-
-    # Create a DataFrame with motifs and their proportions
-    motifs_df = pd.DataFrame({
-        'Motif': motif_proportions.index,
-        'Proportion': motif_proportions.values
-    })
-
-    # Return the modified dictionary and the DataFrame
-    return dict_mutations, motifs_df
 
 def process_dictionary(dict_mutations):
     ''' 
@@ -315,20 +295,13 @@ def process_dictionary(dict_mutations):
     
     Returns:
     - dict_mutations (dict): The modified dictionary after applying both functions.
-    - motifs_df (DataFrame): A DataFrame containing the motifs and their proportions.
     '''
     # Step 1: Apply the filter_sd function to filter values based on standard deviation
     keys_filter = ['INV_DUP__Length', 'DUP__Length', 'VNTR__Length']
     dict_mutations = filter_sd(dict_mutations.copy(), keys_filter)
     
-    # Step 2: Extract VNTR motifs and remove the 'VNTR_VNTR_Motifs' key
-    dict_mutations, motifs_df = extractvntr_motifs(dict_mutations)
-    
-    # Step 3: Save the motifs DataFrame to a TSV file
-    motifs_df.to_csv('Separated_Motifs.tsv', sep='\t', index=False)  # Save as TSV (tab-separated)
-    
     # Return the modified dictionary and the DataFrame containing the motifs and their proportions
-    return dict_mutations, motifs_df
+    return dict_mutations
 
 def insertion_features_df(input_dict):
     # Define the columns as per the requirement
@@ -511,6 +484,8 @@ def genome_wide_distribution(chromosome_length, bin_size, table):
     # Save the result to a TSV file
     final_table.to_csv('Genome_Wide_Distribution.tsv', sep='\t', index=False)
 
+# Remove FutureWarnings
+warnings.simplefilter(action='ignore', category=FutureWarning)
 
 def main(file_path, chromosome_length, bin_size):
     print(f'VCF file with insertions: {file_path}')
@@ -518,18 +493,18 @@ def main(file_path, chromosome_length, bin_size):
     print(f'Size of genomic bins (default: 1000000): {bin_size}')
 
     table = read_vcf_file_BED(file_path)
-    processed_table = process_bed_table(table)
+    processed_table, vntr_df = process_bed_table(table)
     dict1 = create_dict(processed_table)
-    processed_dict, motifs_df = process_dictionary(dict1)
+    processed_dict = process_dictionary(dict1)
     insertion_features_df(processed_dict)
-    genome_wide_distribution(chromosome_length,bin_size,processed_table)
+    genome_wide_distribution(chromosome_length, bin_size, processed_table)
     probabilities_df(processed_table)
-
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description='Obtain and process data from Variant Calling File (VCF)')
-    parser.add_argument('file_path', type=str, help='Path to the VCF file containing insertion data.')
-    parser.add_argument('chromosome_length', type=str, help='Path to the chromosome length file.')
-    parser.add_argument('--bin_size', type=int, default=1000000, help='Size of genomic bins (default: 1000000).')
+    parser.add_argument('--file_path', type=str, required=True, help='Path to the VCF file containing insertion data.')
+    parser.add_argument('--chromosome_length', type=str, required=True, help='Path to the chromosome length file.')
+    parser.add_argument('--bin_size', type=int, required=False, default=1000000, help='Size of genomic bins (default: 1000000).')
     args = parser.parse_args()
     main(args.file_path, args.chromosome_length, args.bin_size)
+    
