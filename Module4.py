@@ -11,151 +11,103 @@
 # - Modified reference genome (Modified_Reference_Genome.fasta)
 # - Table with added events and their current positions in the genome (Sorted_Genomic_Events.tsv)
 
+# Developers
+# SVModeller has been developed by Ismael Vera-Munoz (orcid.org/0009-0009-2860-378X) at the Repetitive DNA Biology (REPBIO) Lab at the Centre for Genomic Regulation (CRG) (Barcelona 2024-2025)
+
+# License
+# SVModeller is distributed under the AGPL-3.0.
+
 import argparse
 import pandas as pd
 import formats
-import os
+import warnings
 
 def write_fasta(file_path, seq_dict):
-    ''' 
-    Function to create a fasta file from a dictionary
-    '''
+    '''Create a FASTA file from a dictionary of sequences'''
     with open(file_path, 'w') as fasta_file:
         for header, sequence in seq_dict.items():
-            # Write the header line
-            fasta_file.write(f">{header}\n")  
-            # Write the sequence line
-            fasta_file.write(f"{sequence}\n")  
+            fasta_file.write(f">{header}\n")
+            fasta_file.write(f"{sequence}\n")
+
+# Remove FutureWarnings
+warnings.simplefilter(action='ignore', category=FutureWarning)
 
 def main(file1, file2, fasta_file):
-    # Print the paths of the input files
     print(f'File 1 path: {file1}')
     if file2:
         print(f'File 2 path: {file2}')
     print(f'FASTA file: {fasta_file}')
 
-    # Load the first file (insertions file)
+    # Load and merge input TSV files
     df_1 = pd.read_csv(file1, sep='\t')
-    
-    # If a second file is provided, load and merge
-    if file2:
-        df_2 = pd.read_csv(file2, sep='\t')
-        # Merging the DataFrames by concatenating them vertically
-        merged_df = pd.concat([df_1, df_2], ignore_index=True, sort=False)
-    else:
-        # If no second file, just use insertions
-        merged_df = df_1
-
-    # Order according to chromosome, start point, and event type
+    merged_df = pd.concat([df_1, pd.read_csv(file2, sep='\t')], ignore_index=True) if file2 else df_1
     sorted_df = merged_df.sort_values(by=['#ref', 'beg', 'Event_Type'])
 
-    # Create an instance of the FASTA class
+    # Read reference genome
     fasta_reader = formats.FASTA()
-    # Read the FASTA file
     fasta_reader.read(fasta_file)
 
-    # Dictionary with keys 'chr1' to 'chr23' and all values set to 0
-    counter_dict = {f'chr{i}': 0 for i in range(1, 23)}
-    counter_dict['chrX'] = 0
-    counter_dict['chrY'] = 0
-
-    # For each row get the necessary values
-    for index, row in sorted_df.iterrows():
-        ref_key = row['#ref']
-        beg_position = row['beg']
-        total_length = row['Length']
-        event_type = row['Event_Type']
-        
-        if ref_key in fasta_reader.seqDict:
-            # Insertions
-            if event_type == 'Insertion':
-                # Get the sequence
-                sequence_ins = row['Sequence_Insertion']
-                if beg_position <= len(fasta_reader.seqDict[ref_key]):
-                    # Divide the sequence in 2 and insert the sequence
-                    fasta_reader.seqDict[ref_key] = (
-                        fasta_reader.seqDict[ref_key][:beg_position] +
-                        sequence_ins +
-                        fasta_reader.seqDict[ref_key][beg_position:]
-                    )
-                # Sum the length to the counter
-                counter_dict[ref_key] += total_length
-            
-            # Deletions
-            elif event_type == 'Deletion':
-                if beg_position < len(fasta_reader.seqDict[ref_key]):
-                    # Split the sequence in 2, removing the part of the deletion
-                    fasta_reader.seqDict[ref_key] = (
-                        fasta_reader.seqDict[ref_key][:beg_position] +
-                        fasta_reader.seqDict[ref_key][beg_position + total_length:]
-                    )
-                # Subtract the value from the counter
-                counter_dict[ref_key] -= total_length
-
-    # Initialize the new columns in the DataFrame
+    # Initialize offsets and columns for haplotype positions
+    offsets = {ref: 0 for ref in fasta_reader.seqDict.keys()}
     sorted_df.insert(4, 'beg_haplotype', None)
     sorted_df.insert(5, 'end_haplotype', None)
 
-    # Maintain a dynamic starting length based on the counter before changes
+    # Apply events and calculate haplotype coordinates on the fly
     for index, row in sorted_df.iterrows():
-        ref_key = row['#ref']
-        beg_position = row['beg']
-        total_length = row['Length']
-        event_type = row['Event_Type']
-        
-        # Calculate current sequence length based on counter
-        current_length = counter_dict[ref_key]
-        
-        # Insertions
-        if event_type == 'Insertion':
-            # Get the sequence
-            sequence_ins = row['Sequence_Insertion']
-            # Divide the sequence in 2 and insert the sequence
-            fasta_reader.seqDict[ref_key] = (
-                fasta_reader.seqDict[ref_key][:beg_position] +
-                sequence_ins +
-                fasta_reader.seqDict[ref_key][beg_position:]
-            )
-            # Update the new columns
-            sorted_df.at[index, 'beg_haplotype'] = (
-                current_length + len(fasta_reader.seqDict[ref_key][:beg_position])
-            )
-            sorted_df.at[index, 'end_haplotype'] = (
-                sorted_df.at[index, 'beg_haplotype'] + len(sequence_ins)
-            )
+        ref_key = row['#ref'].strip()
+        beg = int(row['beg'])
+        event = row['Event_Type']
+        length = int(row['Length']) if pd.notna(row['Length']) else 0
+        seq_insertion = row['Sequence_Insertion'] if 'Sequence_Insertion' in row and pd.notna(row['Sequence_Insertion']) else ''
 
-            # Increase the length of the sequence in the counter
-            counter_dict[ref_key] += total_length
-            
-        # Deletions
-        elif event_type == 'Deletion':
-            # Calculate start and end positions for deletion
-            start_position = beg_position
-            end_position = beg_position + total_length 
-            
-            # Update the new columns 
-            start = current_length + len(fasta_reader.seqDict[ref_key][:beg_position])
-            sorted_df.at[index, 'beg_haplotype'] = start
-            sorted_df.at[index, 'end_haplotype'] = start + 1
-            
-            # Split the sequence in 2, removing the part of the deletion
-            fasta_reader.seqDict[ref_key] = (
-                fasta_reader.seqDict[ref_key][:start_position] +
-                fasta_reader.seqDict[ref_key][end_position:]
-            )
+        if ref_key not in fasta_reader.seqDict:
+            continue
 
-            # Decrease the length of the sequence in the counter
-            counter_dict[ref_key] -= total_length
-    
-    # Save table with positions after modifications
+        # Adjust position based on current offset
+        adjusted_beg = beg + offsets[ref_key]
+
+        if event == 'Insertion':
+            # Modify reference coordinates: end = beg + 1
+            sorted_df.at[index, 'end'] = beg + 1  # Insertions should have end = beg + 1
+            
+            # Do not modify the Length here; keep the original length of the insertion
+            # sorted_df.at[index, 'Length'] = 1  # Removed this line to keep the original length
+
+            # Insert into sequence
+            if adjusted_beg <= len(fasta_reader.seqDict[ref_key]):
+                fasta_reader.seqDict[ref_key] = (
+                    fasta_reader.seqDict[ref_key][:adjusted_beg] +
+                    seq_insertion +
+                    fasta_reader.seqDict[ref_key][adjusted_beg:]
+                )
+                # Update offset based on the length of the inserted sequence
+                offsets[ref_key] += len(seq_insertion)
+
+            # Haplotype coordinates for insertion
+            sorted_df.at[index, 'beg_haplotype'] = adjusted_beg
+            sorted_df.at[index, 'end_haplotype'] = adjusted_beg + len(seq_insertion)
+
+        elif event == 'Deletion':
+            if adjusted_beg < len(fasta_reader.seqDict[ref_key]):
+                fasta_reader.seqDict[ref_key] = (
+                    fasta_reader.seqDict[ref_key][:adjusted_beg] +
+                    fasta_reader.seqDict[ref_key][adjusted_beg + length:]
+                )
+                # Update offset based on the deletion length
+                offsets[ref_key] -= length
+
+            # Haplotype coordinates for deletion (only 1bp apart)
+            sorted_df.at[index, 'beg_haplotype'] = adjusted_beg
+            sorted_df.at[index, 'end_haplotype'] = adjusted_beg + 1  # Only 1bp apart for deletions
+
+    # Save outputs
     sorted_df.to_csv('Sorted_Genomic_Events.tsv', sep='\t', index=False)
-    # Write the modified sequences to a new FASTA file
     write_fasta("Modified_Reference_Genome.fasta", fasta_reader.seqDict)
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description='Process genomic insertions and deletions')
-    parser.add_argument('file1', type=str, help='Path to the first TSV file .')
-    parser.add_argument('fasta_file', type=str, help='Path to the FASTA file.')
-    parser.add_argument('file2', type=str, nargs='?', default=None, help='Optional path to the second TSV file.')
+    parser.add_argument('--file1', type=str, required=True, help='Path to the first TSV file.')
+    parser.add_argument('--fasta_file', type=str, required=True, help='Path to the FASTA file.')
+    parser.add_argument('--file2', type=str, nargs='?', default=None, required=False, help='Optional path to the second TSV file.')
     args = parser.parse_args()
     main(args.file1, args.file2, args.fasta_file)
