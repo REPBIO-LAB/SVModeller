@@ -1,4 +1,4 @@
-# SVModeler - Module 2
+# SVModeller - Module 2
 
 # Model probabilities, insertion features, and genome wide distribution to generate new events
 
@@ -14,9 +14,15 @@
 # - List of VNTR motifs
 # - List of SVA VNTR motifs 
 
-#Output:
+# Output:
 # - New insertion events sequences with their corresponding features (Insertions_table.tsv)
 # - OPTIONAL: Variant Calling File (VCF) with insertion data
+
+# Developers
+# SVModeller has been developed by Ismael Vera-Munoz (orcid.org/0009-0009-2860-378X) at the Repetitive DNA Biology (REPBIO) Lab at the Centre for Genomic Regulation (CRG) (Barcelona 2024-2025)
+
+# License
+# SVModeller is distributed under the AGPL-3.0.
 
 import argparse
 import numpy as np
@@ -28,6 +34,7 @@ import statistics
 import pysam
 import formats
 import datetime
+import warnings
 
 def consensus_seqs(file_path):
     ''' 
@@ -127,7 +134,7 @@ def generate_random_numbers(dictionary, num_samples):
     random_numbers_dict = {}
     for key, value in dictionary.items():
         dist = distfit()
-        dist.fit_transform(value)
+        dist.fit_transform(value, verbose = 0)
         random_numbers = dist.generate(num_samples)
         random_numbers = random_numbers.astype(int)
         random_numbers_dict[key] = random_numbers
@@ -452,75 +459,34 @@ def read_file_and_store_lines(file_path):
     with open(file_path, 'r') as file:
         lines = [line.strip() for line in file]
     return lines
+
 def VNTR_insertions(row, motifs_file):
     '''
-    Function to generate VNTR sequences, selecting motifs based on their proportions
-    from a .tsv file containing 'Motif' and 'Proportion' columns.
+    Function to generate VNTR sequences by selecting a random row from the provided file
+    and using its 'Complete_Sequence', 'Start', 'VNTR_Num_Motifs', and 'VNTR_Motifs'.
     '''
-    # Step 1: Read the motifs and their proportions from the .tsv file
-    motifs_df_original = pd.read_csv(motifs_file, sep='\t')  # Reads .tsv file
-    motifs_df = motifs_df_original.copy()  # Create a copy of the DataFrame to work with
-    
-    # Create a list of motifs and their associated proportions
-    motifs = motifs_df['Motif'].tolist()
-    proportions = motifs_df['Proportion'].tolist()
-    
-    # Step 2: Extract the necessary values from the DataFrame row
-    total_length = int(row['Length'])
-    number_motifs = int(row['VNTR_Num_Motifs'])
-    
-    selected_motifs = []
-    total_selected_length = 0
-    
-    # Step 3: Select motifs until we have the desired number of motifs and the total length is not exceeded
-    while len(selected_motifs) < number_motifs:
-        # Randomly select a motif based on the proportions
-        motif_index = random.choices(range(len(motifs)), proportions)[0]  # Get the index of the selected motif
-        motif = motifs[motif_index]  # Use the index to get the motif
-        motif_length = len(motif)
-        
-        # Check if adding this motif would exceed the total length
-        if total_selected_length + motif_length <= total_length:
-            selected_motifs.append(motif)
-            total_selected_length += motif_length
-            
-            # Remove the selected motif and its proportion from the DataFrame
-            motifs_df = motifs_df.drop(index=motif_index).reset_index(drop=True)  # Remove the selected motif row
-            motifs = motifs_df['Motif'].tolist()  # Update the motifs list
-            proportions = motifs_df['Proportion'].tolist()  # Update the proportions list
-    
-    # Step 4: Handle the case of a single motif
-    if number_motifs == 1:
-        single_motif = selected_motifs[0]
-        single_motif_length = len(single_motif)
-        repetitions = total_length // single_motif_length
-        remainder = total_length % single_motif_length
-        
-        sequence = single_motif * repetitions
-        if remainder > 0:
-            sequence += single_motif[:remainder]  # Add partial motif
-    
-    else:
-        # Step 5: If more than one motif, divide total length into non-equal parts
-        lengths = random.sample(range(1, total_length // number_motifs + 1), number_motifs - 1)
-        lengths.append(total_length - sum(lengths))  # Make sure total length is preserved
-        
-        lengths = [length for length in lengths if length > 0]  # Filter out any zero-length
-        
-        sequence = ''
-        
-        for i in range(number_motifs):
-            motif = selected_motifs[i]
-            motif_length = len(motif)
-            part_length = lengths[i]
-            repetitions = part_length // motif_length
-            remainder = part_length % motif_length
-            
-            sequence += motif * repetitions
-            if remainder > 0:
-                sequence += motif[:remainder]  # Add partial motif
 
-    return sequence, selected_motifs
+    # Step 1: Read the motifs file
+    motifs_df = pd.read_csv(motifs_file, sep='\t')  # Reads the .tsv file containing motif information
+    
+    # Step 2: Randomly select a row from the motifs file
+    random_row = motifs_df.sample(n=1).iloc[0]
+    
+    # Step 3: Get values from the randomly selected row
+    complete_sequence = random_row['Complete_Sequence']
+    start_position = random_row['Start']
+    vntr_num_motifs = int(random_row['VNTR_Num_Motifs'])
+    vntr_motifs = random_row['VNTR_Motifs'].split(',')
+    # Step 4: Update the row with the selected values
+    row['Sequence_Insertion'] = complete_sequence
+    row['Length'] = len(complete_sequence)  # Set the Length as the length of the Complete_Sequence
+    row['VNTR_Num_Motifs'] = vntr_num_motifs  # Update the VNTR_Num_Motifs
+    row['VNTR_Motifs'] = vntr_motifs  # Update the VNTR_Motifs list
+    row['Start'] = start_position  # Update the Start position
+    
+    # Step 5: Return the Complete_Sequence as the sequence and the VNTR_Motifs
+    sequence = complete_sequence  # Now the sequence is just the Complete_Sequence
+    return sequence, vntr_motifs, vntr_num_motifs
 
 def DUP_insertions(row,reference_fasta):
     ''' 
@@ -552,15 +518,6 @@ def NUMT_insertions(row,dict_consensus):
         result += seq[(start_pos + offset) % len(seq)]
     
     return result
-
-def inverse_sequence(seq):
-    ''' 
-    Function to reverse the order of the given sequence
-    '''
-    # Reverse the sequence using slicing [::-1]
-    reversed_seq = seq[::-1]
-    
-    return reversed_seq
 
 def orphan_insertions(row, reference_fasta):
     ''' 
@@ -763,7 +720,7 @@ def L1__TRUN_REV_BLUNT_FOR_POLYA_insertions(row, dict_consensus, reference_fasta
         # Slice the sequence from the end based on the 'REV' value starting after L1_seq
         rev_seq_start = len(L1_consensus) - for_value  # The point where L1_seq ends
         rev_seq = L1_consensus[rev_seq_start - rev_value: rev_seq_start]
-        rev_seq = inverse_sequence(rev_seq)  # Apply inverse function to REV sequence
+        rev_seq = reverse_complementary(rev_seq)  # Apply reverse complementary to REV sequence
     else:
         rev_seq = ''  # In case REV value is invalid or too large
     
@@ -806,7 +763,7 @@ def L1__TRUN_REV_BLUNT_FOR_POLYA_TD_POLYA_insertions(row, dict_consensus, refere
         # Slice the sequence from the end based on the 'REV' value starting after L1_seq
         rev_seq_start = len(L1_consensus) - for_value  # The point where L1_seq ends
         rev_seq = L1_consensus[rev_seq_start - rev_value: rev_seq_start]
-        rev_seq = inverse_sequence(rev_seq)  # Apply inverse function to REV sequence
+        rev_seq = reverse_complementary(rev_seq)  # Apply reverse complementary to REV sequence
     else:
         rev_seq = ''  # In case REV value is invalid or too large
     
@@ -862,7 +819,7 @@ def L1__TRUN_REV_DUP_FOR_POLYA_insertions(row, dict_consensus, reference_fasta):
         # Slice the sequence from the end based on the 'REV' value starting after L1_seq
         rev_seq_start = len(L1_consensus) - for_value  # The point where L1_seq ends
         rev_seq = L1_consensus[rev_seq_start - rev_value: rev_seq_start]
-        rev_seq = inverse_sequence(rev_seq)  # Apply inverse function to REV sequence
+        rev_seq = reverse_complementary(rev_seq)  # Apply reverse complementary to REV sequence
     else:
         rev_seq = ''  # In case REV value is invalid or too large
     
@@ -912,7 +869,7 @@ def L1__TRUN_REV_DUP_FOR_POLYA_TD_POLYA_insertions(row, dict_consensus, referenc
         # Slice the sequence from the end based on the 'REV' value starting after L1_seq
         rev_seq_start = len(L1_consensus) - for_value  # The point where L1_seq ends
         rev_seq = L1_consensus[rev_seq_start - rev_value: rev_seq_start]
-        rev_seq = inverse_sequence(rev_seq)  # Apply inverse function to REV sequence
+        rev_seq = reverse_complementary(rev_seq)  # Apply reverse complementary to REV sequence
     else:
         rev_seq = ''  # In case REV value is invalid or too large
     
@@ -974,7 +931,7 @@ def L1__TRUN_REV_DEL_FOR_POLYA_insertions(row, dict_consensus, reference_fasta):
         # Slice the sequence from the end based on the 'REV' value starting after L1_seq
         rev_seq_start = len(L1_consensus) - for_value  # The point where L1_seq ends
         rev_seq = L1_consensus[rev_seq_start - rev_value: rev_seq_start]
-        rev_seq = inverse_sequence(rev_seq)  # Apply inverse function to REV sequence
+        rev_seq = reverse_complementary(rev_seq)  # Apply reverse complementary to REV sequence
     else:
         rev_seq = ''  # In case REV value is invalid or too large
     
@@ -1018,7 +975,7 @@ def L1__TRUN_REV_DEL_FOR_POLYA_TD_POLYA_insertions(row, dict_consensus, referenc
         # Slice the sequence from the end based on the 'REV' value starting after L1_seq
         rev_seq_start = len(L1_consensus) - for_value  # The point where L1_seq ends
         rev_seq = L1_consensus[rev_seq_start - rev_value: rev_seq_start]
-        rev_seq = inverse_sequence(rev_seq)  # Apply inverse function to REV sequence
+        rev_seq = reverse_complementary(rev_seq)  # Apply reverse complementary to REV sequence
     else:
         rev_seq = ''  # In case REV value is invalid or too large
     
@@ -1556,133 +1513,133 @@ def generate_insertion_seq(row, motifs_file, reference_fasta, dict_consensus, SV
 
     # VNTR
     if row['name'] == 'VNTR':
-        sequence, selected_motifs = VNTR_insertions(row, motifs_file)
-        return sequence, selected_motifs
-    
+        sequence, selected_motifs, vntr_num_motifs = VNTR_insertions(row, motifs_file)
+        return sequence, selected_motifs, vntr_num_motifs
+
     # DUPLICATIONS
     elif row['name'] == 'DUP':
-        return DUP_insertions(row, reference_fasta), 0
+        return DUP_insertions(row, reference_fasta), 0, 0
     
     # NUMT
     elif row['name'] == 'NUMT':
-        return NUMT_insertions(row, dict_consensus), 0
+        return NUMT_insertions(row, dict_consensus), 0, 0
 
     # INVERSE DUPLICATIONS  
     elif row['name'] == 'INV_DUP':
         seq = DUP_insertions(row, reference_fasta)
-        return inverse_sequence(seq), 0
+        return reverse_complementary(seq), 0, 0
 
     # ORPHAN
     elif row['name'] == 'orphan':
-        return orphan_insertions(row, reference_fasta)   , 0
+        return orphan_insertions(row, reference_fasta)   , 0, 0
 
     # Alu__FOR+POLYA
     elif row['name'] == 'Alu__FOR+POLYA':
-        return Alu__FOR_POLYA_insertions(row, dict_consensus, reference_fasta)   , 0
+        return Alu__FOR_POLYA_insertions(row, dict_consensus, reference_fasta)   , 0, 0
 
     # Alu__TRUN+FOR+POLYA
     elif row['name'] == 'Alu__TRUN+FOR+POLYA':
-        return Alu__FOR_POLYA_insertions(row, dict_consensus, reference_fasta)   , 0
+        return Alu__FOR_POLYA_insertions(row, dict_consensus, reference_fasta)   , 0, 0
 
     # L1__FOR+POLYA
     elif row['name'] == 'L1__FOR+POLYA':
-        return L1__FOR_POLYA_insertions(row, dict_consensus, reference_fasta)   , 0
+        return L1__FOR_POLYA_insertions(row, dict_consensus, reference_fasta)   , 0, 0
     
     # L1__TRUN+FOR+POLYA
     elif row['name'] == 'L1__TRUN+FOR+POLYA':
-        return L1__FOR_POLYA_insertions(row, dict_consensus, reference_fasta) , 0  
+        return L1__FOR_POLYA_insertions(row, dict_consensus, reference_fasta) , 0  , 0
     
     # L1__TD+FOR+POLYA
     elif row['name'] == 'L1__TD+FOR+POLYA':
-        return L1__TD_FOR_POLYA_insertions(row, dict_consensus, reference_fasta)   , 0
+        return L1__TD_FOR_POLYA_insertions(row, dict_consensus, reference_fasta)   , 0, 0
 
     # L1__FOR+POLYA+TD+POLYA
     elif row['name'] == 'L1__FOR+POLYA+TD+POLYA':
-        return L1__FOR_POLYA_TD_POLYA_insertions(row, dict_consensus, reference_fasta)   , 0
+        return L1__FOR_POLYA_TD_POLYA_insertions(row, dict_consensus, reference_fasta)   , 0, 0
 
     # L1__TRUN+FOR+POLYA+TD+POLYA
     elif row['name'] == 'L1__TRUN+FOR+POLYA+TD+POLYA':
-        return L1__FOR_POLYA_TD_POLYA_insertions(row, dict_consensus, reference_fasta)   , 0
+        return L1__FOR_POLYA_TD_POLYA_insertions(row, dict_consensus, reference_fasta)   , 0, 0
 
     # L1__TRUN+REV+BLUNT+FOR+POLYA
     elif row['name'] == 'L1__TRUN+REV+BLUNT+FOR+POLYA':
-        return L1__TRUN_REV_BLUNT_FOR_POLYA_insertions(row, dict_consensus, reference_fasta) , 0
+        return L1__TRUN_REV_BLUNT_FOR_POLYA_insertions(row, dict_consensus, reference_fasta) , 0, 0
 
     # L1__TRUN+REV+BLUNT+FOR+POLYA+TD+POLYA
     elif row['name'] == 'L1__TRUN+REV+BLUNT+FOR+POLYA+TD+POLYA':
-        return L1__TRUN_REV_BLUNT_FOR_POLYA_TD_POLYA_insertions(row, dict_consensus, reference_fasta) , 0
+        return L1__TRUN_REV_BLUNT_FOR_POLYA_TD_POLYA_insertions(row, dict_consensus, reference_fasta) , 0, 0
     
     # L1__TRUN+REV+DUP+FOR+POLYA
     elif row['name'] == 'L1__TRUN+REV+DUP+FOR+POLYA':
-        return L1__TRUN_REV_DUP_FOR_POLYA_insertions(row, dict_consensus, reference_fasta) , 0
+        return L1__TRUN_REV_DUP_FOR_POLYA_insertions(row, dict_consensus, reference_fasta) , 0, 0
 
     # L1__TRUN+REV+DUP+FOR+POLYA+TD+POLYA
     elif row['name'] == 'L1__TRUN+REV+DUP+FOR+POLYA+TD+POLYA':
-        return L1__TRUN_REV_DUP_FOR_POLYA_TD_POLYA_insertions(row, dict_consensus, reference_fasta) , 0
+        return L1__TRUN_REV_DUP_FOR_POLYA_TD_POLYA_insertions(row, dict_consensus, reference_fasta) , 0, 0
 
     # L1__TRUN+REV+DEL+FOR+POLYA
     elif row['name'] == 'L1__TRUN+REV+DEL+FOR+POLYA':
-        return L1__TRUN_REV_DEL_FOR_POLYA_insertions(row, dict_consensus, reference_fasta) , 0
+        return L1__TRUN_REV_DEL_FOR_POLYA_insertions(row, dict_consensus, reference_fasta) , 0, 0
     
     # L1__REV+DEL+FOR+POLYA
     elif row['name'] == 'L1__REV+DEL+FOR+POLYA':
-        return L1__TRUN_REV_DEL_FOR_POLYA_insertions(row, dict_consensus, reference_fasta) , 0
+        return L1__TRUN_REV_DEL_FOR_POLYA_insertions(row, dict_consensus, reference_fasta) , 0, 0
 
     # L1__TRUN+REV+DEL+FOR+POLYA+TD+POLYA
     elif row['name'] == 'L1__TRUN+REV+DEL+FOR+POLYA+TD+POLYA':
-        return L1__TRUN_REV_DEL_FOR_POLYA_TD_POLYA_insertions(row, dict_consensus, reference_fasta) , 0
+        return L1__TRUN_REV_DEL_FOR_POLYA_TD_POLYA_insertions(row, dict_consensus, reference_fasta) , 0, 0
 
     # SVA__SINE-R+POLYA
     elif row['name'] == 'SVA__SINE-R+POLYA':
-        return SVA__SINE_R_POLYA_insertions(row, dict_consensus, reference_fasta) , 0
+        return SVA__SINE_R_POLYA_insertions(row, dict_consensus, reference_fasta) , 0, 0
 
     # SVA__VNTR+SINE-R+POLYA
     elif row['name'] == 'SVA__VNTR+SINE-R+POLYA':
-        return SVA__VNTR_SINE_R_POLYA_insertions(row, dict_consensus, reference_fasta, SVA_VNTR_list)   , 0 
+        return SVA__VNTR_SINE_R_POLYA_insertions(row, dict_consensus, reference_fasta, SVA_VNTR_list)   , 0 , 0
 
     # SVA__Alu-like+VNTR+SINE-R+POLYA
     elif row['name'] == 'SVA__Alu-like+VNTR+SINE-R+POLYA':
-        return SVA__Alu_like_VNTR_SINE_R_POLYA_insertions(row, dict_consensus, reference_fasta, SVA_VNTR_list)    , 0
+        return SVA__Alu_like_VNTR_SINE_R_POLYA_insertions(row, dict_consensus, reference_fasta, SVA_VNTR_list)    , 0, 0
 
     # SVA__MAST2+VNTR+SINE-R+POLYA
     elif row['name'] == 'SVA__MAST2+VNTR+SINE-R+POLYA':
-        return SVA__MAST2_VNTR_SINE_R_POLYA_insertions(row, dict_consensus, reference_fasta, SVA_VNTR_list)  , 0
+        return SVA__MAST2_VNTR_SINE_R_POLYA_insertions(row, dict_consensus, reference_fasta, SVA_VNTR_list)  , 0, 0
 
     # SVA__TD+MAST2+VNTR+SINE-R+POLYA
     elif row['name'] == 'SVA__TD+MAST2+VNTR+SINE-R+POLYA':
-        return SVA__TD_MAST2_VNTR_SINE_R_POLYA_insertions(row, dict_consensus, reference_fasta, SVA_VNTR_list)  , 0  
+        return SVA__TD_MAST2_VNTR_SINE_R_POLYA_insertions(row, dict_consensus, reference_fasta, SVA_VNTR_list)  , 0  , 0
 
     # SVA__SINE-R+POLYA+TD+POLYA
     elif row['name'] == 'SVA__SINE-R+POLYA+TD+POLYA':
-        return SVA__SINE_R_POLYA_TD_POLYA_insertions(row, dict_consensus, reference_fasta)   , 0
+        return SVA__SINE_R_POLYA_TD_POLYA_insertions(row, dict_consensus, reference_fasta)   , 0, 0
 
     # SVA__VNTR+SINE-R+POLYA+TD+POLYA
     elif row['name'] == 'SVA__VNTR+SINE-R+POLYA+TD+POLYA':
-        return SVA__VNTR_SINE_R_POLYA_TD_POLYA_insertions(row, dict_consensus, reference_fasta, SVA_VNTR_list), 0
+        return SVA__VNTR_SINE_R_POLYA_TD_POLYA_insertions(row, dict_consensus, reference_fasta, SVA_VNTR_list), 0, 0
 
     # SVA__Alu-like+VNTR+SINE-R+POLYA+TD+POLYA
     elif row['name'] == 'SVA__Alu-like+VNTR+SINE-R+POLYA+TD+POLYA':
-        return SVA__Alu_like_VNTR_SINE_R_POLYA_TD_POLYA_insertions(row, dict_consensus, reference_fasta, SVA_VNTR_list), 0
+        return SVA__Alu_like_VNTR_SINE_R_POLYA_TD_POLYA_insertions(row, dict_consensus, reference_fasta, SVA_VNTR_list), 0, 0
 
     # SVA__MAST2+VNTR+SINE-R+POLYA+TD+POLYA
     elif row['name'] == 'SVA__MAST2+VNTR+SINE-R+POLYA+TD+POLYA':
-        return SVA__MAST2_VNTR_SINE_R_POLYA_TD_POLYA_insertions(row, dict_consensus, reference_fasta, SVA_VNTR_list)  , 0
+        return SVA__MAST2_VNTR_SINE_R_POLYA_TD_POLYA_insertions(row, dict_consensus, reference_fasta, SVA_VNTR_list)  , 0, 0
 
     # SVA__Hexamer+Alu-like+VNTR+SINE-R+POLYA
     elif row['name'] == 'SVA__Hexamer+Alu-like+VNTR+SINE-R+POLYA':
-        return SVA__Hexamer_Alu_like_VNTR_SINE_R_POLYA_insertions(row, dict_consensus, reference_fasta, SVA_VNTR_list)    , 0
+        return SVA__Hexamer_Alu_like_VNTR_SINE_R_POLYA_insertions(row, dict_consensus, reference_fasta, SVA_VNTR_list)    , 0, 0
 
     # SVA__TD+Hexamer+Alu-like+VNTR+SINE-R+POLYA
     elif row['name'] == 'SVA__TD+Hexamer+Alu-like+VNTR+SINE-R+POLYA':
-        return SVA__TD_Hexamer_Alu_like_VNTR_SINE_R_POLYA_insertions(row, dict_consensus, reference_fasta, SVA_VNTR_list)    , 0
+        return SVA__TD_Hexamer_Alu_like_VNTR_SINE_R_POLYA_insertions(row, dict_consensus, reference_fasta, SVA_VNTR_list)    , 0, 0
     
     # SVA__Hexamer+Alu-like+VNTR+SINE-R+POLYA+TD+POLYA
     elif row['name'] == 'SVA__Hexamer+Alu-like+VNTR+SINE-R+POLYA+TD+POLYA':
-        return SVA__Hexamer_Alu_like_VNTR_SINE_R_POLYA_TD_POLYA_insertions(row, dict_consensus, reference_fasta, SVA_VNTR_list)   , 0
+        return SVA__Hexamer_Alu_like_VNTR_SINE_R_POLYA_TD_POLYA_insertions(row, dict_consensus, reference_fasta, SVA_VNTR_list)   , 0 , 0
 
     else:
-        return '', 0
-    
+        return '', 0, 0 
+
 def reverse_complementary(seq):
     ''' 
     Function to create reverse complementary of a given sequence
@@ -2028,6 +1985,9 @@ def create_vcf_file(df, reference_fasta, chromosome_length):
 
     print("VCF file created successfully.")
 
+# Remove FutureWarnings
+warnings.simplefilter(action='ignore', category=FutureWarning)
+
 def main(consensus_path, probabilities_numbers_path, insertion_features_path, genome_wide_path, source_L1_path, source_SVA_path, motifs_path, SVA_VNTR_path, reference_fasta_path, chromosome_length_path, num_events, apply_VCF):
     print(f'File with consensus sequences: {consensus_path}')
     print(f'File with probabilities or number of events: {probabilities_numbers_path}')
@@ -2038,7 +1998,6 @@ def main(consensus_path, probabilities_numbers_path, insertion_features_path, ge
     print(f'File with VNTR motifs: {motifs_path}')
     print(f'File with reference genome: {reference_fasta_path}')
     print(f'File with SVA VNTR motifs: {SVA_VNTR_path}')
-    print(f'Number of generated events: {num_events}')
     
     # Get consensus sequences
     consensus_dict = consensus_seqs(consensus_path)
@@ -2059,7 +2018,8 @@ def main(consensus_path, probabilities_numbers_path, insertion_features_path, ge
     # Add source gene information for transduction events
     df_insertions6 = add_source_gene_info(df_insertions5, source_L1_path, source_SVA_path)
     # Generate the insertion sequence and selected VNTR motifs
-    df_insertions6['Sequence_Insertion'], df_insertions6['Selected_VNTR_Motifs'] = zip(*df_insertions6.apply(lambda row: generate_insertion_seq(row, motifs_path, reference_fasta_path, consensus_dict, SVA_VNTR_motifs), axis=1))
+    df_insertions6['Sequence_Insertion'], df_insertions6['Selected_VNTR_Motifs'],df_insertions6['VNTR_Num_Motifs'] = zip(*df_insertions6.apply(lambda row: generate_insertion_seq(row, motifs_path, reference_fasta_path, consensus_dict, SVA_VNTR_motifs), axis=1))
+    #df_insertions6['Sequence_Insertion'] = df_insertions6.apply(lambda row: generate_insertion_seq(row, motifs_path, reference_fasta_path, consensus_dict, SVA_VNTR_motifs), axis=1)
     # Update VNTR motifs
     df_insertions6 = process_vntr_motifs(df_insertions6)
     # Update the insertion sequence
@@ -2077,20 +2037,19 @@ def main(consensus_path, probabilities_numbers_path, insertion_features_path, ge
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description='Generate insertion sequences returned in tsv file.')
-    parser.add_argument('consensus_path', type=str, help='Path to file with consensus sequences.')
-    parser.add_argument('probabilities_numbers_path', type=str, help='Path to the TSV file probabilities or defined number of events.')
-    parser.add_argument('insertion_features_path', type=str, help='Path to the TSV file containing insertion features of events.')
-    parser.add_argument('genome_wide_path', type=str, help='Path to the TSV file containing genome-wide distribution of events.')
-    parser.add_argument('source_L1_path', type=str, help='Path to the TSV file containing loci for LINE-1 transductions.')
-    parser.add_argument('source_SVA_path', type=str, help='Path to the TSV file containing loci for SVA transductions.')
-    parser.add_argument('motifs_path', type=str, help='Path to the TSV file containing loci for SVA transductions.')
-    parser.add_argument('SVA_VNTR_path', type=str, help='Path to the TSV file containing loci for SVA transductions.')
-    parser.add_argument('reference_fasta_path', type=str, help='Path to file with reference genome.')
-    parser.add_argument('chromosome_length_path', type=str, help='Path to the chromosome length file.')
-    parser.add_argument('--num_events', type=int, default=100, help='Number of events to sample (optional, just in case of providing probabilities).')
-    parser.add_argument('--VCF', action='store_true', help='If specified, creates a Variant Calling File (VCF)')
+    parser.add_argument('--consensus_path', type=str, required=True, help='Path to file with consensus sequences.')
+    parser.add_argument('--probabilities_numbers_path', type=str, required=True, help='Path to the TSV file probabilities or defined number of events.')
+    parser.add_argument('--insertion_features_path', type=str, required=True, help='Path to the TSV file containing insertion features of events.')
+    parser.add_argument('--genome_wide_path', type=str, required=True, help='Path to the TSV file containing genome-wide distribution of events.')
+    parser.add_argument('--source_L1_path', type=str, required=True, help='Path to the TSV file containing loci for LINE-1 transductions.')
+    parser.add_argument('--source_SVA_path', type=str, required=True, help='Path to the TSV file containing loci for SVA transductions.')
+    parser.add_argument('--motifs_path', type=str, required=True, help='Path to the TSV file containing loci for SVA transductions.')
+    parser.add_argument('--SVA_VNTR_path', type=str, required=True, help='Path to the TSV file containing loci for SVA transductions.')
+    parser.add_argument('--reference_fasta_path', type=str, required=True, help='Path to file with reference genome.')
+    parser.add_argument('--chromosome_length_path', type=str, required=True, help='Path to the chromosome length file.')
+    parser.add_argument('--num_events', type=int, default=100, required=False, help='Number of events to sample (optional, just in case of providing probabilities).')
+    parser.add_argument('--VCF', action='store_true', required=False, help='If specified, creates a Variant Calling File (VCF)')
     
     args = parser.parse_args()
 
-    # Call main with the correct apply_VCF variable name
     main(args.consensus_path, args.probabilities_numbers_path, args.insertion_features_path, args.genome_wide_path, args.source_L1_path, args.source_SVA_path, args.motifs_path, args.SVA_VNTR_path, args.reference_fasta_path, args.chromosome_length_path, args.num_events, apply_VCF=args.VCF)
