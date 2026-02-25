@@ -25,7 +25,7 @@ This module aims to process the insertion data from the VCF obtaining different 
 - OPTIONAL: Window size for genome segmentation, by default 1 Mega base _(integer number)_
   
 **Output:**
-- Genome-wide distribution _(Genome_Wide_Distribution.tsv.tsv)_
+- Genome-wide distribution _(Genome_Wide_Distribution.tsv)_
 - Insertion features _(Insertion_Features.tsv)_
 - Event probabilities _(Probabilities.tsv)_
 - List of VNTR motifs _(Separated_Motifs.tsv)_
@@ -51,7 +51,7 @@ Second module objective is to generate from determine distributions the final se
 - OPTIONAL: Variant Calling File (VCF) with insertion data
 
 **Mandatory input columns**
-- Genome-Wide Distribution _(Genome_Wide_Distribution.tsv.tsv)_: 'window', 'beg', 'end', each event conformation as a column (i.e. 'Alu__FOR+POLYA', 'VNTR', 'INV_DUP')
+- Genome-Wide Distribution _(Genome_Wide_Distribution.tsv)_: 'window', 'beg', 'end', each event conformation as a column (i.e. 'Alu__FOR+POLYA', 'VNTR', 'INV_DUP')
 - Insertion features _(Insertion_Features.tsv)_: 'Event', 'Length', 'Strand', 'TSD_Length', 'TD_5', 'TD_3', 'SVA_Hexamer', 'SVA_VNTR_Length', 'TD_orphan_Length', 'VNTR_Num_Motifs', 'PolyA_Length_1', 'PolyA_Length_2', 'FOR', 'TRUN', 'REV', 'DEL', 'DUP'
 - Event Probabilities _(Probabilities.tsv)_: 'Event' and 'Probability' (probabilities between 0 and 1)or 'Number' (number of each event to simulate)
    
@@ -113,12 +113,28 @@ Available data to run the modules for versions 0.1 and 0.2 available at:
 [Link to Zenodo](https://zenodo.org/records/14629433?token=eyJhbGciOiJIUzUxMiJ9.eyJpZCI6IjkxODlmMGVmLTU4ZmMtNGQ5NC04MmRmLWNiNTc3NWRlZGEzYSIsImRhdGEiOnt9LCJyYW5kb20iOiIzMTQyNDg4MjcyYTI2ZDRmZTI3MTcwOGJkNTEzY2RiNyJ9.0ikZdwVU-K6ffwjmEb3HudqHvyz52Umt0XZyO91t_1ffEeP3VTV9iKaRhTWBf8ABoF03R24WMKzMu23yDjpX3Q)
 
 
+## Required software
+The Genome Analysis API [(GAPI)](https://github.com/REPBIO-LAB/GAPI.git), release 1.0.4, must be installed in the same directory as the SVModeller modules. 
+
+SVModeller has been developed and tested with the following software versions:
+-	Python 3.9
+-	pandas 2.3.0
+-	numpy 2.0.2
+-	distfit 1.8.9
+-	pysam 0.23.3
+-	pbsim3 3.0.4
+-	minimap2 2.22
+-	samtools 1.19.2
+
+For reproducibility and compatibility, it is recommended to use these exact versions or later compatible releases.
+
+
 ## Additional scripts
 - Filter_VCF_information.py: to remove from VCF files the information field, keeping just the event length.
 
 
 ## Developers
-SVModeller has been developed by Ismael Vera Muñoz at the Repetitive DNA Biology (REPBIO) Lab at the Centre for Genomic Regulation (CRG) (2024-2025).
+SVModeller has been developed by Ismael Vera-Munoz (orcid.org/0009-0009-2860-378X) at the Repetitive DNA Biology (REPBIO) Lab at the Centre for Genomic Regulation (CRG) (2024-2026).
 
 ## License
 SVModeller is distributed under the AGPL-3.0. Consult the [LICENSE](https://github.com/REPBIO-LAB/SVModeller/blob/main/LICENSE) file for more information.
