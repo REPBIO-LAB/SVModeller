@@ -15,17 +15,18 @@
 # - List of SVA VNTR motifs (.txt)
 
 # Developers
-# SVModeller has been developed by Ismael Vera-Munoz (orcid.org/0009-0009-2860-378X) at the Repetitive DNA Biology (REPBIO) Lab at the Centre for Genomic Regulation (CRG) (Barcelona 2024-2025)
+# SVModeller has been developed by Ismael Vera-Munoz (orcid.org/0009-0009-2860-378X) at the Repetitive DNA Biology (REPBIO) Lab at the Centre for Genomic Regulation (CRG) (Barcelona 2024-2026)
 
 # License
 # SVModeller is distributed under the AGPL-3.0.
 
-import formats
+from GAPI import formats
 import pandas as pd
-import statistics
-import gRanges
+from GAPI import statistics
+from GAPI import gRanges
 import argparse
 import warnings
+import numpy as np
 
 def TD_filter(df):
     ''' 
@@ -274,16 +275,39 @@ def create_dict(df):
 
     return event_dict
 
-def filter_sd(dict, key_list):
-    ''' 
-    Function to remove those values that exceed twice the standard deviation
+def filter_sd(dict_mutations, key_list):
+    '''
+    Remove values outside ±2 standard deviations from the mean
+    Only applied to numeric values
     '''
     for key in key_list:
-        values = dict.get(key, [])
-        std_dev = statistics.stdev(values)
-        dict[key] = [value for value in values if value <= 2 * std_dev]  
-    return dict 
+        values = dict_mutations.get(key, [])
 
+        # Keep only numeric values
+        numeric_values = [v for v in values if isinstance(v, (int, float))]
+
+        # Skip if not enough numeric values
+        if len(numeric_values) < 2:
+            continue
+
+        mean = np.mean(numeric_values)
+        std_dev = np.std(numeric_values, ddof=1)
+
+        upper_lim = mean + 2 * std_dev
+        lower_lim = mean - 2 * std_dev
+
+        # Filter only numeric entries, keep non-numeric untouched
+        filtered = []
+        for v in values:
+            if isinstance(v, (int, float)):
+                if lower_lim <= v <= upper_lim:
+                    filtered.append(v)
+            else:
+                filtered.append(v)
+
+        dict_mutations[key] = filtered
+
+    return dict_mutations
 
 def process_dictionary(dict_mutations):
     ''' 
@@ -296,8 +320,8 @@ def process_dictionary(dict_mutations):
     Returns:
     - dict_mutations (dict): The modified dictionary after applying both functions.
     '''
-    # Step 1: Apply the filter_sd function to filter values based on standard deviation
-    keys_filter = ['INV_DUP__Length', 'DUP__Length', 'VNTR__Length']
+    # Step 1: Apply filter_sd to all keys in the dictionary
+    keys_filter = list(dict_mutations.keys())
     dict_mutations = filter_sd(dict_mutations.copy(), keys_filter)
     
     # Return the modified dictionary and the DataFrame containing the motifs and their proportions
