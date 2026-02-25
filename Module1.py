@@ -22,7 +22,6 @@
 
 from GAPI import formats
 import pandas as pd
-from GAPI import statistics
 from GAPI import gRanges
 import argparse
 import warnings
