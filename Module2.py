@@ -2223,16 +2223,6 @@ def remove_negative_values(values):
     '''
     return [value for value in values if value > 0]
 
-def filter_sd(dict,key_list):
-    ''' 
-    Function to remove those values that exceed twice the standard deviation
-    '''
-    for key in key_list:
-        values = dict[key]
-        std_dev = statistics.stdev(values)
-        values = [value for value in values if value <= 2 * std_dev]
-        dict[key] = values
-
 def filter_DEL(dict):
     '''
     Check if a key contains 'DEL' in its name. If it does, it removes values larger than 1000 from the corresponding list of values for that key.
