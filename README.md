@@ -31,6 +31,13 @@ This module aims to process the insertion data from the VCF obtaining different 
 - List of VNTR motifs _(Separated_Motifs.tsv)_
 - List of SVA VNTR motifs _(SVA_VNTR_Motifs.txt)_
 
+**Sample command:**
+```bash
+python3 Module1.py \
+    --file_path VCF_Insertions.vcf \
+    --chromosome_length chr_length.txt
+```
+
 ### Module 2
 Second module objective is to generate from determine distributions the final sequences that will be inserted in a genome. It takes the genome-wide and insertion features distributions, even from module 1 or user-defined ones with the same structure as the ones derived from module 1. From these distributions samples different values to build the new events and returns their generated sequence.
 
@@ -54,7 +61,23 @@ Second module objective is to generate from determine distributions the final se
 - Genome-Wide Distribution _(Genome_Wide_Distribution.tsv)_: 'window', 'beg', 'end', each event conformation as a column (i.e. 'Alu__FOR+POLYA', 'VNTR', 'INV_DUP')
 - Insertion features _(Insertion_Features.tsv)_: 'Event', 'Length', 'Strand', 'TSD_Length', 'TD_5', 'TD_3', 'SVA_Hexamer', 'SVA_VNTR_Length', 'TD_orphan_Length', 'VNTR_Num_Motifs', 'PolyA_Length_1', 'PolyA_Length_2', 'FOR', 'TRUN', 'REV', 'DEL', 'DUP'
 - Event Probabilities _(Probabilities.tsv)_: 'Event' and 'Probability' (probabilities between 0 and 1)or 'Number' (number of each event to simulate)
-   
+
+**Sample command:**
+```bash
+python3 Module2.py \
+    --consensus_path consensus_sequences_complete.fa\
+    --probabilities_numbers_path Number_events.tsv \
+    --insertion_features_path Insertion_Features.tsv \
+    --genome_wide_path Genome_Wide_Distribution.tsv \
+    --source_L1_path source_loci_LINE1.tsv \
+    --source_SVA_path source_loci_SVA.tsv \
+    --motifs_path VNTR_with_start_position.txt \
+    --SVA_VNTR_path SVA_VNTR_Motifs.txt\
+    --reference_fasta_path chm13v2.0.fa \
+    --chromosome_length_path chr_length.txt \
+    --VCF
+```
+
 ### Module 3
 Third module generates deletions events. It takes the data from VCF and based on the determine number of events to simulate, selects the regions to be deleted, and returns a data frame with the regions to be removed from the genome.
 
@@ -68,6 +91,16 @@ Third module generates deletions events. It takes the data from VCF and based on
 **Output:**
 - Deletion regions _(Deletions_table.tsv)_
 - OPTIONAL: Variant Calling File (VCF) with deletion data
+
+**Sample command:**
+```bash
+python3 Module3.py \
+    --vcf_path VCF_Deletions.vcf \
+    --path_chromosome_length chr_length.txt \
+    --num_events 1000 \
+    --VCF \
+    --reference_fasta_path chm13v2.0.fa
+```
 
 ### Module 4
 Fourth module results in a modified genome. It takes data frames of insertion and deletion data (even from modules 2 and 3 or user-defined) and modifies a reference genome with the determine information. The result is the reference genome with the specified changes.
@@ -83,6 +116,14 @@ Fourth module results in a modified genome. It takes data frames of insertion an
 
 **Mandatory input columns**
 - Events to mofidy reference genome: '#ref', 'beg', 'Length', 'Event_Type', 'Sequence_Insertion'
+
+**Sample command:**
+```bash
+python3 Module4.py \
+    --file1 Insertions_table.tsv \
+    --fasta_file chm13v2.0.fa \
+    --file2 Deletions_table.tsv
+```
 
 ### Module 5
 Fifth module aims to generate sub-clonal variant reads with different coverage and allele frequency levels. It takes the reference and modified genomes, as well as the method file (based on error model, quality score, or fastQ files) and the corresponding method file, the technology of the simulated reads (Oxford Nanopore - ONT, PacBio - PB, PacBio-HiFi - HiFi), and desired coverage and allele frequency. Please ensure consistency in the technology used across all files
@@ -102,6 +143,19 @@ Fifth module aims to generate sub-clonal variant reads with different coverage a
 - Modified genome reads (.fastq)
 - Reference genome reads (.fastq)
 
+**Sample command:**
+```bash
+python3 Module5.py \
+    --reference_genome chm13v2.0.fa \
+    --modified_genome Modified_Reference_Genome.fasta \
+    --method_file ERRHMM-ONT-HQ.model \
+    --method error_model \
+    --coverage 30 \
+    --allele_frequency 0.5 \
+    --output_dir BAM_Output \
+    --technology ONT \
+    --threads 8
+```
 
 ## Data
 Available data to run the modules for versions 0.1 and 0.2 available at:
