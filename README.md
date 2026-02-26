@@ -160,6 +160,9 @@ python3 Module5.py \
 ## Data
 Available data to run the modules for versions 0.1 and 0.2 available at:
 
+- Version 0.5:
+[Link to Zenodo](https://zenodo.org/records/18786409?token=eyJhbGciOiJIUzUxMiJ9.eyJpZCI6IjI5ODkyYWRjLTc5YjUtNDRkYS1iMGU5LTc4OTE2ZGQ0ZTIzNiIsImRhdGEiOnt9LCJyYW5kb20iOiIyOTc3YzRiM2Q0OGIzOWRlYjY3NTRhOGViNDI5YmFmMiJ9.zwH3JwxIJ-taN4QT72WxYWUIPVnIWqq5QZUj1LL8alMAaHcyizdbBtYjJ7JWTUbUDOTaoyCwplyXz1JUXp86zA)
+
 - Version 0.2:
 [Link to Zenodo](https://zenodo.org/records/14967709?token=eyJhbGciOiJIUzUxMiJ9.eyJpZCI6IjQ0NDU5OWVjLTZiM2EtNDllOC05YzNkLTE3YjNiM2NhNjVmNCIsImRhdGEiOnt9LCJyYW5kb20iOiI2NGFkOGIxNGY4YmQyOWFlNzlhZGU1NzEwNzZiYmEzNSJ9.ueQ38ZbCp-OBSGps4-_Q5KUDtJ2JoGPhUApvrzHgtZ6j5IqzLIdrik4BEPhVqteQl4yxZ9en_A57mmS_U3zayQ)
 
