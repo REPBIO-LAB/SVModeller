@@ -21,6 +21,26 @@ import argparse
 import pandas as pd
 from GAPI import formats
 import warnings
+import random
+import numpy as np
+import os
+
+def set_seed(seed: int = 42):
+    """Sets random seeds across all libraries used in SVModeller
+
+    to ensure reproducible results.
+    """
+    if seed is None:
+        return
+
+    # Set standard Python random seed
+    random.seed(seed)
+
+    # Set NumPy random seed
+    np.random.seed(seed)
+
+    # Set Python hash seed for consistent dictionary/set ordering
+    os.environ['PYTHONHASHSEED'] = str(seed)
 
 def write_fasta(file_path, seq_dict):
     '''Create a FASTA file from a dictionary of sequences'''
@@ -32,12 +52,14 @@ def write_fasta(file_path, seq_dict):
 # Remove FutureWarnings
 warnings.simplefilter(action='ignore', category=FutureWarning)
 
-def main(file1, file2, fasta_file):
+def main(file1, file2, fasta_file, seed):
     print(f'File 1 path: {file1}')
     if file2:
         print(f'File 2 path: {file2}')
     print(f'FASTA file: {fasta_file}')
 
+    # Set seed
+    set_seed(seed)
     # Load and merge input TSV files
     df_1 = pd.read_csv(file1, sep='\t')
     merged_df = pd.concat([df_1, pd.read_csv(file2, sep='\t')], ignore_index=True) if file2 else df_1
@@ -109,5 +131,7 @@ if __name__ == "__main__":
     parser.add_argument('--file1', type=str, required=True, help='Path to the first TSV file.')
     parser.add_argument('--fasta_file', type=str, required=True, help='Path to the FASTA file.')
     parser.add_argument('--file2', type=str, nargs='?', default=None, required=False, help='Optional path to the second TSV file.')
+    parser.add_argument('--seed', type=int, required=False, default=42, help='Random seed for reproducibility (default: 42).')
+
     args = parser.parse_args()
-    main(args.file1, args.file2, args.fasta_file)
+    main(args.file1, args.file2, args.fasta_file, args.seed)

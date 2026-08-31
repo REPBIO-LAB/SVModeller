@@ -28,6 +28,24 @@ import pysam
 import os
 import datetime
 import warnings
+import random
+
+def set_seed(seed: int = 42):
+    """Sets random seeds across all libraries used in SVModeller
+
+    to ensure reproducible results.
+    """
+    if seed is None:
+        return
+
+    # Set standard Python random seed
+    random.seed(seed)
+
+    # Set NumPy random seed
+    np.random.seed(seed)
+
+    # Set Python hash seed for consistent dictionary/set ordering
+    os.environ['PYTHONHASHSEED'] = str(seed)
 
 def TD_filter(df):
     ''' 
@@ -464,12 +482,15 @@ def create_VCF(df, reference_fasta, chromosome_length):
 # Remove FutureWarnings
 warnings.simplefilter(action='ignore', category=FutureWarning)
 
-def main(vcf_path, path_chromosome_length, num_events, bin_size,apply_VCF, reference_fasta_path):
+def main(vcf_path, path_chromosome_length, num_events, bin_size,apply_VCF, reference_fasta_path, seed):
     # Print the paths of the input files
     print(f'VCF file with deletion data: {vcf_path}')
     print(f'Chromosome length file: {path_chromosome_length}')
     print(f'Number of events: {num_events}')
     print(f'Size of genomic bins (default: 1000000).: {bin_size}')
+
+    # Set seed
+    set_seed(seed)
 
     # Get data from VCF file
     table = read_vcf_file_BED(vcf_path)
@@ -501,6 +522,7 @@ if __name__ == "__main__":
     parser.add_argument('--bin_size', type=int, default=1000000, required=False, help='Size of genomic bins (default: 1000000).')
     parser.add_argument('--VCF', action='store_true', required=False, help='If specified, creates a Variant Calling File (VCF)')
     parser.add_argument('--reference_fasta_path', type=str, required=False, help='Path to file with reference genome.')
+    parser.add_argument('--seed', type=int, required=False, default=42, help='Random seed for reproducibility (default: 42).')
 
     args = parser.parse_args()
     # Check if --VCF is provided, and make sure all required arguments are there
@@ -509,4 +531,4 @@ if __name__ == "__main__":
             parser.print_help()
             raise ValueError("When --VCF is specified --reference_fasta_path is required.")
 
-    main(args.vcf_path, args.path_chromosome_length, args.num_events, args.bin_size, args.VCF, args.reference_fasta_path)
+    main(args.vcf_path, args.path_chromosome_length, args.num_events, args.bin_size, args.VCF, args.reference_fasta_path, args.seed)
