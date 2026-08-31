@@ -160,7 +160,7 @@ def main(reference_genome, modified_genome, method_file, method, coverage, allel
 
     else:
         run_pbsim(reference_genome, method_file, method, reference_coverage, output_dir, 'Reference_reads', seed)
-        run_pbsim(modified_genome, method_file, method, modified_coverage, output_dir, 'Modified_reads', seed)
+        run_pbsim(modified_genome, method_file, method, modified_coverage, output_dir, 'Modified_reads', seed + 1)
 
     # Search all FASTQ files for reference and modified genomes
     reference_fastq_files = find_fastq_files(output_dir, "Reference_reads")
