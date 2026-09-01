@@ -28,9 +28,28 @@ import os
 import argparse
 import glob
 import warnings
+import random
+import numpy as np
+
+def set_seed(seed: int = 42):
+    """Sets random seeds across all libraries used in SVModeller
+
+    to ensure reproducible results.
+    """
+    if seed is None:
+        return
+
+    # Set standard Python random seed
+    random.seed(seed)
+
+    # Set NumPy random seed
+    np.random.seed(seed)
+
+    # Set Python hash seed for consistent dictionary/set ordering
+    os.environ['PYTHONHASHSEED'] = str(seed)
 
 # Function to run PBSIM to generate synthetic reads for reference and modified genomes
-def run_pbsim(genome, method_file, method, depth, output_dir, output_reference):
+def run_pbsim(genome, method_file, method, depth, output_dir, output_reference, seed):
     if depth == 0:
         print("Depth is 0. Skipping PBSIM execution.")
         return
@@ -39,11 +58,11 @@ def run_pbsim(genome, method_file, method, depth, output_dir, output_reference):
     output_prefix = os.path.join(output_dir, output_reference)
 
     if method == 'quality_score':
-        command = f"pbsim --strategy wgs --method qshmm --qshmm {method_file} --depth {depth} --genome {genome} --prefix {output_prefix}"
+        command = f"pbsim --strategy wgs --method qshmm --qshmm {method_file} --depth {depth} --genome {genome} --prefix {output_prefix} --seed {seed}"
     elif method == 'error_model':
-        command = f"pbsim --strategy wgs --method errhmm --errhmm {method_file} --depth {depth} --genome {genome} --prefix {output_prefix}"
+        command = f"pbsim --strategy wgs --method errhmm --errhmm {method_file} --depth {depth} --genome {genome} --prefix {output_prefix} --seed {seed}"
     elif method == 'training':
-        command = f"pbsim --strategy wgs --method sample --sample {method_file} --depth {depth} --genome {genome} --prefix {output_prefix}"
+        command = f"pbsim --strategy wgs --method sample --sample {method_file} --depth {depth} --genome {genome} --prefix {output_prefix} --seed {seed}"
     else:
         raise ValueError(f"Unknown method: {method}")
 
@@ -53,17 +72,17 @@ def run_pbsim(genome, method_file, method, depth, output_dir, output_reference):
     return output_prefix
 
 # Function to align reads using Minimap2
-def run_minimap2(reference_file, fastq_file_1, fastq_file_2, output_bam, technology, threads):
+def run_minimap2(reference_file, fastq_file_1, fastq_file_2, output_bam, technology, threads, seed):
     fastqs = fastq_file_1
     if fastq_file_2:
         fastqs += f" {fastq_file_2}"
 
     if technology == 'ONT':
-        command = f"minimap2 -ax map-ont {reference_file} {fastqs} -t {threads}"
+        command = f"minimap2 -ax map-ont {reference_file} {fastqs} -t {threads} --seed {seed}"
     elif technology == 'PB':
-        command = f"minimap2 -ax map-pb {reference_file} {fastqs} -t {threads}"
+        command = f"minimap2 -ax map-pb {reference_file} {fastqs} -t {threads} --seed {seed}"
     elif technology == 'HiFi':
-        command = f"minimap2 -ax map-hifi {reference_file} {fastqs} -t {threads}"
+        command = f"minimap2 -ax map-hifi {reference_file} {fastqs} -t {threads} --seed {seed}"
     else:
         raise ValueError(f"Unknown technology: {technology}")
 
@@ -110,7 +129,7 @@ def find_fastq_files(output_dir, prefix):
 warnings.simplefilter(action='ignore', category=FutureWarning)
 
 # Main function
-def main(reference_genome, modified_genome, method_file, method, coverage, allele_frequency, output_dir, technology, threads):
+def main(reference_genome, modified_genome, method_file, method, coverage, allele_frequency, output_dir, technology, threads, seed):
     print(f'Reference genome: {reference_genome}')
     print(f'Modified genome: {modified_genome}')
     print(f'Method file: {method_file}')
@@ -120,6 +139,9 @@ def main(reference_genome, modified_genome, method_file, method, coverage, allel
     print(f'Technology: {technology}')
     print(f'Threads: {threads}')
     print(f'Output directory: {output_dir}')
+
+    # Set seed
+    set_seed(seed)
 
     # Calculate coverage of modified and reference genome
     reference_coverage = int(coverage * (1 - allele_frequency))
@@ -131,14 +153,14 @@ def main(reference_genome, modified_genome, method_file, method, coverage, allel
     # Generate reads for reference and modified genomes using PBSIM
     # Generate reads depending on allele frequency
     if allele_frequency == 0:
-        run_pbsim(reference_genome, method_file, method, coverage, output_dir, 'Reference_reads')
+        run_pbsim(reference_genome, method_file, method, coverage, output_dir, 'Reference_reads', seed)
 
     elif allele_frequency == 1:
-        run_pbsim(modified_genome, method_file, method, coverage, output_dir, 'Modified_reads')
+        run_pbsim(modified_genome, method_file, method, coverage, output_dir, 'Modified_reads', seed)
 
     else:
-        run_pbsim(reference_genome, method_file, method, reference_coverage, output_dir, 'Reference_reads')
-        run_pbsim(modified_genome, method_file, method, modified_coverage, output_dir, 'Modified_reads')
+        run_pbsim(reference_genome, method_file, method, reference_coverage, output_dir, 'Reference_reads', seed)
+        run_pbsim(modified_genome, method_file, method, modified_coverage, output_dir, 'Modified_reads', seed + 1)
 
     # Search all FASTQ files for reference and modified genomes
     reference_fastq_files = find_fastq_files(output_dir, "Reference_reads")
@@ -150,7 +172,7 @@ def main(reference_genome, modified_genome, method_file, method, coverage, allel
     if allele_frequency == 0:
         for i, ref_fastq in enumerate(reference_fastq_files):
             output_bam = os.path.join(output_dir, f"combined_alignment_{i + 1}.bam")
-            run_minimap2(reference_genome, ref_fastq, "", output_bam, technology, threads)
+            run_minimap2(reference_genome, ref_fastq, "", output_bam, technology, threads, seed)
 
             sorted_bam_file = sort_bam(output_bam, threads)
             index_bam(sorted_bam_file, threads)
@@ -160,7 +182,7 @@ def main(reference_genome, modified_genome, method_file, method, coverage, allel
     elif allele_frequency == 1:
         for i, mod_fastq in enumerate(modified_fastq_files):
             output_bam = os.path.join(output_dir, f"combined_alignment_{i + 1}.bam")
-            run_minimap2(reference_genome, mod_fastq, "", output_bam, technology, threads)
+            run_minimap2(reference_genome, mod_fastq, "", output_bam, technology, threads, seed)
 
             sorted_bam_file = sort_bam(output_bam, threads)
             index_bam(sorted_bam_file, threads)
@@ -180,7 +202,8 @@ def main(reference_genome, modified_genome, method_file, method, coverage, allel
                 modified_fastq_files[i],
                 output_bam,
                 technology,
-                threads
+                threads,
+                seed
             )
 
             sorted_bam_file = sort_bam(output_bam, threads)
@@ -206,6 +229,7 @@ if __name__ == "__main__":
     parser.add_argument('--output_dir', type=str, required=True, help='Name of the parent output directory where results will be saved')
     parser.add_argument('--technology', type=str, required=True, choices=['ONT', 'PB', 'HiFi'], help='Sequencing technology to use (ONT, PB, HiFi)')
     parser.add_argument('--threads', type=int, default=1, required=False, help='Number of threads to use for Minimap2, and Samtools')
+    parser.add_argument('--seed', type=int, required=False, default=42, help='Random seed for reproducibility (default: 42).')
 
     args = parser.parse_args()
 
@@ -222,4 +246,4 @@ if __name__ == "__main__":
         if not args.reference_genome or not args.modified_genome:
             parser.error("--reference_genome and --modified_genome are required when 0 < allele_frequency < 1")
 
-    main(args.reference_genome, args.modified_genome, args.method_file, args.method, args.coverage, args.allele_frequency, args.output_dir, args.technology, args.threads)
+    main(args.reference_genome, args.modified_genome, args.method_file, args.method, args.coverage, args.allele_frequency, args.output_dir, args.technology, args.threads, args.seed)

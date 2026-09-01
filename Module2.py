@@ -36,6 +36,23 @@ import os
 import datetime
 import warnings
 
+def set_seed(seed: int = 42):
+    """Sets random seeds across all libraries used in SVModeller
+
+    to ensure reproducible results.
+    """
+    if seed is None:
+        return
+
+    # Set standard Python random seed
+    random.seed(seed)
+
+    # Set NumPy random seed
+    np.random.seed(seed)
+
+    # Set Python hash seed for consistent dictionary/set ordering
+    os.environ['PYTHONHASHSEED'] = str(seed)
+
 def consensus_seqs(file_path):
     ''' 
     Function to read from a fasta file the consensus sequences
@@ -2046,7 +2063,7 @@ def create_vcf_file(df, reference_fasta, chromosome_length):
 warnings.simplefilter(action='ignore', category=FutureWarning)
 warnings.simplefilter(action='ignore', category=UserWarning)
 
-def main(consensus_path, probabilities_numbers_path, insertion_features_path, genome_wide_path, source_L1_path, source_SVA_path, motifs_path, SVA_VNTR_path, reference_fasta_path, chromosome_length_path, num_events, apply_VCF):
+def main(consensus_path, probabilities_numbers_path, insertion_features_path, genome_wide_path, source_L1_path, source_SVA_path, motifs_path, SVA_VNTR_path, reference_fasta_path, chromosome_length_path, num_events, apply_VCF, seed):
     print(f'File with consensus sequences: {consensus_path}')
     print(f'File with probabilities or number of events: {probabilities_numbers_path}')
     print(f'File with insertions features: {insertion_features_path}')
@@ -2056,7 +2073,9 @@ def main(consensus_path, probabilities_numbers_path, insertion_features_path, ge
     print(f'File with VNTR motifs: {motifs_path}')
     print(f'File with reference genome: {reference_fasta_path}')
     print(f'File with SVA VNTR motifs: {SVA_VNTR_path}')
-    
+
+    # Set seed
+    set_seed(seed)
     # Get consensus sequences
     consensus_dict = consensus_seqs(consensus_path)
     # Open SVAs VNTR motifs file
@@ -2107,7 +2126,8 @@ if __name__ == "__main__":
     parser.add_argument('--chromosome_length_path', type=str, required=True, help='Path to the chromosome length file.')
     parser.add_argument('--num_events', type=int, default=100, required=False, help='Number of events to sample (optional, just in case of providing probabilities).')
     parser.add_argument('--VCF', action='store_true', required=False, help='If specified, creates a Variant Calling File (VCF)')
-    
+    parser.add_argument('--seed', type=int, required=False, default=42, help='Random seed for reproducibility (default: 42).')
+
     args = parser.parse_args()
 
-    main(args.consensus_path, args.probabilities_numbers_path, args.insertion_features_path, args.genome_wide_path, args.source_L1_path, args.source_SVA_path, args.motifs_path, args.SVA_VNTR_path, args.reference_fasta_path, args.chromosome_length_path, args.num_events, apply_VCF=args.VCF) 
+    main(args.consensus_path, args.probabilities_numbers_path, args.insertion_features_path, args.genome_wide_path, args.source_L1_path, args.source_SVA_path, args.motifs_path, args.SVA_VNTR_path, args.reference_fasta_path, args.chromosome_length_path, args.num_events, args.VCF, args.seed) 
