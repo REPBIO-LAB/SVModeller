@@ -31,6 +31,7 @@ import warnings
 import random
 import numpy as np
 import tempfile
+from pathlib import Path
 
 def set_seed(seed: int = 42):
     """Sets random seeds across all libraries used in SVModeller
@@ -72,7 +73,7 @@ def run_pbsim(genome, method_file, method, depth, output_dir, output_reference, 
 
     return output_prefix
 
-def run_insilicoseq_single_genome(genome, short_read_model, depth, output_dir, output_reference, seed):
+def run_insilicoseq_single_genome(genome, short_read_model, depth, output_dir, output_reference, threads, seed):
     if depth == 0:
         print("Depth is 0. Skipping InsilicoSeq execution.")
         return
@@ -91,6 +92,8 @@ def run_insilicoseq_single_genome(genome, short_read_model, depth, output_dir, o
         cmd = [
             "iss",
             "generate",
+            "--cpus",
+            str(threads),
             "--draft",
             str(genome),
             "--coverage_file",
@@ -99,6 +102,7 @@ def run_insilicoseq_single_genome(genome, short_read_model, depth, output_dir, o
             str(short_read_model),
             "--seed",
             str(seed),
+            "-q",
             "--output",
             str(output_prefix),
         ]
@@ -108,7 +112,7 @@ def run_insilicoseq_single_genome(genome, short_read_model, depth, output_dir, o
 
     return output_prefix
 
-def run_insilicoseq_diploid(hap1, hap2, short_read_model, depth, output_dir, output_reference, seed):
+def run_insilicoseq_diploid(hap1, hap2, short_read_model, depth, output_dir, output_reference, threads, seed):
     if depth == 0:
         print("Depth is 0. Skipping InsilicoSeq execution.")
         return
@@ -128,6 +132,8 @@ def run_insilicoseq_diploid(hap1, hap2, short_read_model, depth, output_dir, out
         cmd = [
             "iss",
             "generate",
+            "--cpus",
+            str(threads),
             "--draft",
             str(hap1),
             str(hap2),
@@ -137,6 +143,7 @@ def run_insilicoseq_diploid(hap1, hap2, short_read_model, depth, output_dir, out
             str(short_read_model),
             "--seed",
             str(seed),
+            "-q",
             "--output",
             str(output_prefix),
         ]
@@ -166,7 +173,7 @@ def run_minimap2(reference_file, fastq_file_1, fastq_file_2, output_bam, technol
 
 def run_bwa_short_reads(reference_file, fastq_file_1, fastq_file_2, output_bam, threads):
     #the random seed is not needed in bwa, however the multi-thread change might introduce a bit difference if using different threads for re-produce
-    command = f"bwa mem -t {threads} -R '@RG\\tID:{output_bam}\\tSM:{output_bam}\\tPL:ILLUMINA' {reference_file} {fastq_file_1} {fastq_file_2}"
+    command = f"bwa mem -v 0 -t {threads} -R '@RG\\tID:{output_bam}\\tSM:{output_bam}\\tPL:ILLUMINA' {reference_file} {fastq_file_1} {fastq_file_2}"
 
     command += f" | samtools view -bS -o {output_bam} -@ {threads}"
 
@@ -270,17 +277,19 @@ def main(reference_genome, modified_genome, method_file, method, coverage, allel
     if technology == 'Illumina':
         if mode == 'haploid':
             if allele_frequency == 0:
-                run_insilicoseq_single_genome(reference_genome, short_read_model, coverage, output_dir, 'Reference_reads', seed)
+                run_insilicoseq_single_genome(reference_genome, short_read_model, coverage, output_dir, 'Reference_reads', threads, seed)
             elif allele_frequency == 1:
-                run_insilicoseq_single_genome(modified_genome, short_read_model, coverage, output_dir, 'Modified_reads', seed)
+                run_insilicoseq_single_genome(modified_genome, short_read_model, coverage, output_dir, 'Modified_reads', threads, seed)
         
             else:
-                run_insilicoseq_single_genome(reference_genome, short_read_model, reference_coverage, output_dir, 'Reference_reads', seed)
-                run_insilicoseq_single_genome(modified_genome, short_read_model, modified_coverage, output_dir, 'Modified_reads', seed + 1)
+                run_insilicoseq_single_genome(reference_genome, short_read_model, reference_coverage, output_dir, 'Reference_reads', threads, seed)
+                run_insilicoseq_single_genome(modified_genome, short_read_model, modified_coverage, output_dir, 'Modified_reads', threads, seed + 1)
         elif mode == 'diploid':
             hap1 = modified_genome[0]
             hap2 = modified_genome[1]
-            run_insilicoseq_diploid(hap1, hap2, short_read_model, coverage, output_dir, 'Modified_reads', seed)
+            run_insilicoseq_diploid(hap1, hap2, short_read_model, coverage, output_dir, 'Modified_reads', threads, seed)
+        command = f"rm {output_dir}/*.iss.tmp.*.vcf"
+        subprocess.run(command, shell=True)
     else:
         if mode == 'haploid':
             if allele_frequency == 0:
@@ -301,6 +310,12 @@ def main(reference_genome, modified_genome, method_file, method, coverage, allel
     bam_files = []
 
     if technology == "Illumina":
+
+        file_path = Path(f"{reference_genome}.bwt")
+
+        if not file_path.is_file():
+            raise RuntimeError('Reference is not indexed, please index the reference with \"bwa index {reference_genome}\" before you run alignment')
+        
         # Search all FASTQ files for reference and modified genomes
         reference_fastq_files_1, reference_fastq_files_2= find_paired_fastq_files(output_dir, "Reference_reads")
         modified_fastq_files_1, modified_fastq_files_2= find_paired_fastq_files(output_dir, "Modified_reads")
@@ -435,7 +450,12 @@ def main(reference_genome, modified_genome, method_file, method, coverage, allel
 
     # Sort and index the final merged BAM file
     sorted_bam_file = sort_bam(final_bam, threads)
+
+    command = f"rm {output_dir}/*.bai {output_dir}/combined_alignment_*.bam {output_dir}/combined_final_alignment.bam"
+    subprocess.run(command, shell=True)
+
     index_bam(sorted_bam_file, threads)
+
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description='Generate and align reads from reference and modified genome')
