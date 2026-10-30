@@ -451,7 +451,7 @@ def main(reference_genome, modified_genome, method_file, method, coverage, allel
     # Sort and index the final merged BAM file
     sorted_bam_file = sort_bam(final_bam, threads)
 
-    command = f"rm {output_dir}/*.bai {output_dir}/combined_alignment_*.bam {output_dir}/combined_final_alignment.bam"
+    command = f"rm {output_dir}/combined_final_alignment.bam.bai {output_dir}/combined_alignment_*.bam.bai {output_dir}/combined_alignment_*.bam {output_dir}/combined_final_alignment.bam"
     subprocess.run(command, shell=True)
 
     index_bam(sorted_bam_file, threads)
